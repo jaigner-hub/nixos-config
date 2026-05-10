@@ -3,12 +3,21 @@
 # and in the NixOS manual (accessible by running ‘nixos-help’).
 
 { config, pkgs, ... }:
-
+# python
+let
+  pythonWithPackages = pkgs.python3.withPackages (ps: with ps; [
+    requests
+  ]);
+  # sync script
+  syncScript = pkgs.writeScriptBin "putio-sync" (builtins.readFile ./putio-sync.py);
+in
 {
   imports =
     [ # Include the results of the hardware scan.
       ./hardware-configuration.nix
     ];
+
+  nix.settings.experimental-features = [ "nix-command" "flakes" ];
 
   # Bootloader.
   boot.loader.systemd-boot.enable = true;
@@ -102,6 +111,9 @@
 	htop
 	git
 	jellyfin
+	samba
+        mergerfs
+        python3
   ];
 
   # Some programs need SUID wrappers, can be configured further or are
@@ -117,7 +129,26 @@
   # Enable the OpenSSH daemon.
   services.openssh.enable = true; 
 
-  services.jellyfin.enable = true;
+services.jellyfin = {
+  enable = true;
+  openFirewall = true;
+};
+
+services.samba = {
+  enable = true;
+  openFirewall = true;
+  settings = {
+    global = {
+      "workgroup" = "WORKGROUP";
+      "server string" = "RASPBERRYPI";
+    };
+    media = {
+      path = "/mnt/storage";
+      browseable = "yes";
+      "read only" = "no";
+    };
+  };
+};
 
   # Open ports in the firewall.
   # networking.firewall.allowedTCPPorts = [ ... ];
@@ -133,4 +164,44 @@
   # (e.g. man configuration.nix or on https://nixos.org/nixos/options.html).
   system.stateVersion = "25.11"; # Did you read the comment?
 
+  # enable automatic updates
+  system.autoUpgrade.enable = true;
+
+
+  # external HDD 1
+  fileSystems."/mnt/hdd1" = {
+    device = "/dev/disk/by-uuid/ca1567d9-3634-4e46-acd9-545d7525371b";
+    fsType = "ext4";
+    options = [ "nofail" ];
+  };
+
+  # external HDD 2
+  fileSystems."/mnt/hdd2" = {
+    device = "/dev/disk/by-uuid/f15c866f-d200-4b12-866f-bd36c79c626b";
+    fsType = "ext4";
+    options = [ "nofail" ];
+  };
+
+  # combined HDD filesystem using mergerfs
+  fileSystems."/mnt/storage" = {
+    device = "/mnt/nas:/mnt/hdd";
+    fsType = "fuse.mergerfs";
+    options = [ "nofail" ];
+  };
+
+  # crontab
+  systemd.services.putio-sync = {
+    description = "put.io sync";
+    serviceConfig = {
+      ExecStart = "${syncScript}/bin/putio-sync";
+      Type = "oneshot";
+    };
+  };
+
+  systemd.timers.putio-sync = {
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnCalendar = "*:0/15";
+    };
+  };
 }

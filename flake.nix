@@ -5,10 +5,10 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
   };
 
-  outputs = {
+  outputs = {self, nixpkgs }: {
     nixosConfigurations = {
       nas = nixpkgs.lib.nixosSystem {
-        system = "x85_64-linux";
+        system = "x86_64-linux";
         modules = [
           ./hardware-configuration.nix
           ./configuration.nix
