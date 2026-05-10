@@ -56,6 +56,9 @@ in
     isNormalUser = true;
     description = "Jeff";
     extraGroups = [ "networkmanager" "wheel" ];
+    openssh.authorizedKeys.keys = [
+      "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQCbsR0Io6NeA2anMEL5GbKZIBlLKDn9tafrPQJtPAO9EtIlkMKkYVm0wCLJzjiOZ4rgNW7p0C9OxZJ2DpkuK43GtVEePP+A9pvHJNKyVEzL9ZIO4r3F9JPkpvMpCxKTZaJ4K5Fid4fE/C7M9OzA+1kSNjrEGp/MQ8M2EP1KXsOf26pmubBsIYu4GYz4x1jOPhauFWq2XbWWzJQJeMKuDPWR7gTAkTq1w/Gb8ZsNXA6gpvPdPKXCGNYqDB5jZOeE2w8957z0yDznMc/LoF8WXczg5xVtj/X5/5FsOxYKQXIoZlww6CChTz/X5jgWySIUh6OvnSaYXVgB+kW/xLt4/dQYMFrdj73X2wwroVul5eSz67JEonvIdk6K7APFBYvyoRJL2Qw4R8M+86uDTMwQfyXjUoXJcCZKxRljypRmReMsHYFS6+PIsJsy4Wq0I+gt0VIARN9+xETRtogQOT0osrx+Oh7uuevyP6pbCwmr1HY/E4rq8zKyREV5FLm3NilNie8= jaigner@Jeffs-Laptop"
+    ];
     packages = with pkgs; [
     #  thunderbird
     ];
