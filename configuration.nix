@@ -74,6 +74,8 @@ in
 	wget
 	curl
 	htop
+	iotop
+	nmap
 	git
 	jellyfin
 	samba
@@ -160,7 +162,7 @@ services.samba = {
   systemd.services.putio-sync = {
     description = "put.io sync";
     serviceConfig = {
-      ExecStart = "${syncScript}/bin/putio-sync";
+      ExecStart = "${pythonWithPackages}/bin/python3 ${syncScript}/bin/putio-sync";
       Type = "oneshot";
     };
   };
