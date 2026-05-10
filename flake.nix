@@ -1,21 +1,25 @@
 {
-  description = "NAS server config";
+  description = "NixOS homelab — multi-machine flake";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     claude-code-nix.url = "github:sadjow/claude-code-nix";
   };
 
-  outputs = {self, nixpkgs, claude-code-nix}: {
-    nixosConfigurations = {
-      nas = nixpkgs.lib.nixosSystem {
+  outputs = { self, nixpkgs, claude-code-nix }:
+    let
+      mkSystem = name: nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
-        specialArgs = { inherit claude-code-nix; }; 
+        specialArgs = { inherit claude-code-nix; };
         modules = [
-          ./hardware-configuration.nix
-          ./configuration.nix
+          ./machines/${name}/configuration.nix
         ];
       };
+    in {
+      nixosConfigurations = {
+        nas = mkSystem "nas";
+        dev = mkSystem "dev";
+        fragrance-app = mkSystem "fragrance-app";
+      };
     };
-  };
 }
