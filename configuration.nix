@@ -77,10 +77,10 @@ in
 	git
 	jellyfin
 	samba
-        mergerfs
-        python3
-        tmux
-        claude-code-nix.packages.${pkgs.system}.default
+	mergerfs
+	python3
+	tmux
+	claude-code-nix.packages.${pkgs.system}.default
   ];
 
   # Some programs need SUID wrappers, can be configured further or are
