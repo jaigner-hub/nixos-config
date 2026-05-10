@@ -23,7 +23,7 @@ in
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
 
-  networking.hostName = "nixos"; # Define your hostname.
+  networking.hostName = "nass"; # Define your hostname.
   # networking.wireless.enable = true;  # Enables wireless support via wpa_supplicant.
 
   # Configure network proxy if necessary
@@ -83,6 +83,24 @@ in
 	python3
 	tmux
 	claude-code-nix.packages.${pkgs.system}.default
+	gcc
+	gnumake
+	gdb
+	screen
+	unixtools.netstat
+	ffmpeg-full
+	smartmontools
+	hdparm
+	parted
+	ncdu
+	rsync
+	tree
+	unzip
+	p7zip
+	lsof
+	btop
+	dig
+	tcpdump
   ];
 
   # Some programs need SUID wrappers, can be configured further or are
