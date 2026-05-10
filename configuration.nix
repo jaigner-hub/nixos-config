@@ -2,7 +2,7 @@
 # your system.  Help is available in the configuration.nix(5) man page
 # and in the NixOS manual (accessible by running ‘nixos-help’).
 
-{ config, pkgs, ... }:
+{ config, pkgs, claude-code-nix, ... }:
 # python
 let
   pythonWithPackages = pkgs.python3.withPackages (ps: with ps; [
@@ -79,6 +79,8 @@ in
 	samba
         mergerfs
         python3
+        tmux
+        claude-code-nix.packages.${pkgs.system}.default
   ];
 
   # Some programs need SUID wrappers, can be configured further or are
