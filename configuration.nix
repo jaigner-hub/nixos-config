@@ -14,7 +14,6 @@ in
 {
   imports =
     [ # Include the results of the hardware scan.
-      ./hardware-configuration.nix
     ];
 
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
@@ -99,7 +98,7 @@ in
 	p7zip
 	lsof
 	btop
-	dig
+	dnsutils
 	tcpdump
   ];
 
@@ -127,7 +126,7 @@ services.samba = {
   settings = {
     global = {
       "workgroup" = "WORKGROUP";
-      "server string" = "RASPBERRYPI";
+      "server string" = "nass";
     };
     media = {
       path = "/mnt/storage";
@@ -171,7 +170,7 @@ services.samba = {
 
   # combined HDD filesystem using mergerfs
   fileSystems."/mnt/storage" = {
-    device = "/mnt/nas:/mnt/hdd";
+    device = "/mnt/hdd1:/mnt/hdd2";
     fsType = "fuse.mergerfs";
     options = [ "nofail" ];
   };
@@ -182,6 +181,7 @@ services.samba = {
     serviceConfig = {
       ExecStart = "${pythonWithPackages}/bin/python3 ${syncScript}/bin/putio-sync";
       Type = "oneshot";
+      EnvironmentFile = "/etc/putio-sync.env";
     };
   };
 
