@@ -14,7 +14,7 @@
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
 
-  networking.hostName = "broken"; # Define your hostname.
+  networking.hostName = "nixos"; # Define your hostname.
   # networking.wireless.enable = true;  # Enables wireless support via wpa_supplicant.
 
   # Configure network proxy if necessary
@@ -96,6 +96,12 @@
   # List packages installed in system profile. To search, run:
   # $ nix search wget
   environment.systemPackages = with pkgs; [
+	vim
+	wget
+	curl
+	htop
+	git
+	jellyfin
   ];
 
   # Some programs need SUID wrappers, can be configured further or are
@@ -109,7 +115,7 @@
   # List services that you want to enable:
 
   # Enable the OpenSSH daemon.
-  services.openssh.enable = false; 
+  services.openssh.enable = true; 
 
   # Open ports in the firewall.
   # networking.firewall.allowedTCPPorts = [ ... ];
