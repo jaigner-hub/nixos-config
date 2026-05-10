@@ -60,4 +60,9 @@
   ];
 
   system.autoUpgrade.enable = true;
+
+  virtualisation.vmVariant = {
+    services.getty.autologinUser = "root";
+    users.users.root.password = "";
+  };
 }

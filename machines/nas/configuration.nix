@@ -59,19 +59,19 @@ in
   fileSystems."/mnt/hdd1" = {
     device = "/dev/disk/by-uuid/ca1567d9-3634-4e46-acd9-545d7525371b";
     fsType = "ext4";
-    options = [ "nofail" ];
+    options = [ "nofail" "x-systemd.device-timeout=1" ];
   };
 
   fileSystems."/mnt/hdd2" = {
     device = "/dev/disk/by-uuid/f15c866f-d200-4b12-866f-bd36c79c626b";
     fsType = "ext4";
-    options = [ "nofail" ];
+    options = [ "nofail" "x-systemd.device-timeout=1" ];
   };
 
   fileSystems."/mnt/storage" = {
     device = "/mnt/hdd1:/mnt/hdd2";
     fsType = "fuse.mergerfs";
-    options = [ "nofail" ];
+    options = [ "nofail" "x-systemd.device-timeout=1" ];
   };
 
   systemd.services.putio-sync = {
