@@ -56,6 +56,16 @@ in
     };
   };
 
+  users.groups.nextcloud = {
+    gid = 994;
+  };
+  users.users.nextcloud = {
+    isSystemUser = true;
+    group = "nextcloud";
+    uid = 994;
+    description = "Nextcloud data owner (NFS UID/GID parity)";
+  };
+
   fileSystems."/mnt/hdd1" = {
     device = "/dev/disk/by-uuid/ca1567d9-3634-4e46-acd9-545d7525371b";
     fsType = "ext4";
