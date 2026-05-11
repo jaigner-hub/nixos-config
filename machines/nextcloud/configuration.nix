@@ -12,12 +12,12 @@
   networking.hostName = "nextcloud";
 
   users.groups.nextcloud = {
-    gid = 994;
+    gid = 5000;
   };
   users.users.nextcloud = {
     isSystemUser = true;
     group = "nextcloud";
-    uid = 994;
+    uid = 5000;
   };
 
   fileSystems."/mnt/nextcloud-data" = {
