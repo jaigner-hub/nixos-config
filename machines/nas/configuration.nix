@@ -71,10 +71,11 @@ in
     exports = ''
       /mnt/storage/nextcloud 100.64.0.0/10(rw,sync,no_subtree_check,no_root_squash)
     '';
-    settings = {
-      nfsd.vers3 = false;
-      nfsd.vers4 = true;
-    };
+  };
+
+  services.nfs.settings = {
+    nfsd.vers3 = false;
+    nfsd.vers4 = true;
   };
 
   networking.firewall.interfaces.tailscale0.allowedTCPPorts = [ 2049 ];
