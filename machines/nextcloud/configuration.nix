@@ -31,5 +31,37 @@
     ];
   };
 
+  services.nextcloud = {
+    enable = true;
+    package = pkgs.nextcloud31;
+    hostName = "nextcloud";
+    datadir = "/mnt/nextcloud-data";
+    https = false;
+
+    database.createLocally = true;
+    configureRedis = true;
+
+    config = {
+      dbtype = "pgsql";
+      adminuser = "jeff";
+      adminpassFile = "/etc/nextcloud-admin-pass";
+      trustedDomains = [
+        "nextcloud"
+        "nextcloud.<tailnet>.ts.net"
+      ];
+    };
+  };
+
+  networking.firewall.interfaces.tailscale0.allowedTCPPorts = [ 80 ];
+
+  systemd.services.nextcloud-setup = {
+    after = [ "mnt-nextcloud\\x2ddata.mount" ];
+    requires = [ "mnt-nextcloud\\x2ddata.mount" ];
+  };
+  systemd.services.phpfpm-nextcloud = {
+    after = [ "mnt-nextcloud\\x2ddata.mount" ];
+    requires = [ "mnt-nextcloud\\x2ddata.mount" ];
+  };
+
   system.stateVersion = "25.11";
 }
