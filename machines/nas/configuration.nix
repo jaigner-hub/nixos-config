@@ -66,6 +66,15 @@ in
     description = "Nextcloud data owner (NFS UID/GID parity)";
   };
 
+  services.nfs.server = {
+    enable = true;
+    exports = ''
+      /mnt/storage/nextcloud 100.64.0.0/10(rw,sync,no_subtree_check,no_root_squash)
+    '';
+  };
+
+  networking.firewall.interfaces.tailscale0.allowedTCPPorts = [ 2049 ];
+
   fileSystems."/mnt/hdd1" = {
     device = "/dev/disk/by-uuid/ca1567d9-3634-4e46-acd9-545d7525371b";
     fsType = "ext4";
