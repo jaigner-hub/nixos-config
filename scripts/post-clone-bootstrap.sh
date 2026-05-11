@@ -41,12 +41,17 @@ ssh-keygen -A
 echo "==> Writing fresh hardware-configuration.nix for $HOST"
 nixos-generate-config --show-hardware-config > "$HOST_DIR/hardware-configuration.nix"
 
-echo "==> Rebuilding as $HOST"
-nixos-rebuild switch --flake "$REPO_ROOT#$HOST"
+# Use 'boot' rather than 'switch' on first deploy: it stages the new generation
+# as the next boot target without trying to activate it on the live system.
+# This sidesteps activation-time races (e.g. NetworkManager racing dbus to
+# reach a freshly-introduced systemd-resolved) that hang the rebuild on a
+# system whose old config differs significantly from the new one.
+echo "==> Building $HOST and staging it as the next boot generation"
+nixos-rebuild boot --flake "$REPO_ROOT#$HOST"
 
 cat <<EOF
 
-Done.
+Build complete. The new generation will activate on next boot.
 
 The regenerated hardware-configuration.nix at:
   $HOST_DIR/hardware-configuration.nix
@@ -54,5 +59,9 @@ The regenerated hardware-configuration.nix at:
 is per-machine local state — DO NOT commit it. The committed placeholder
 must stay generic so 'nixos-rebuild build-vm' works across hosts.
 
-Reboot recommended to fully apply the hostname change.
+Reboot now:
+  sudo reboot
+
+After the reboot, future updates can use the normal:
+  sudo nixos-rebuild switch --flake .#$HOST
 EOF
