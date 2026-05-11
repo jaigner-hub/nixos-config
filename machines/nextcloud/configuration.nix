@@ -45,10 +45,13 @@
       dbtype = "pgsql";
       adminuser = "jeff";
       adminpassFile = "/etc/nextcloud-admin-pass";
-      trustedDomains = [
-        "nextcloud"
+    };
+
+    settings = {
+      trusted_domains = [
         "nextcloud.<tailnet>.ts.net"
       ];
+      default_phone_region = "US";
     };
   };
 
