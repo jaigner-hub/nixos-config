@@ -49,7 +49,7 @@
 
     settings = {
       trusted_domains = [
-        "nextcloud.<tailnet>.ts.net"
+        "nextcloud.tail1ec6c3.ts.net"
       ];
       default_phone_region = "US";
     };
