@@ -8,6 +8,7 @@ let
     "nass:9100"
     "dev:9100"
     "fragrance-app:9100"
+    "nextcloud:9100"
   ];
 in
 {
