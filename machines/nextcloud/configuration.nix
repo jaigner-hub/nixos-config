@@ -20,5 +20,16 @@
     uid = 994;
   };
 
+  fileSystems."/mnt/nextcloud-data" = {
+    device = "nass:/mnt/storage/nextcloud";
+    fsType = "nfs4";
+    options = [
+      "nofail"
+      "x-systemd.automount"
+      "x-systemd.device-timeout=10"
+      "_netdev"
+    ];
+  };
+
   system.stateVersion = "25.11";
 }
