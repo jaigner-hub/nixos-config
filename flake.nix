@@ -22,6 +22,7 @@
         fragrance-app = mkSystem "fragrance-app";
         gateway = mkSystem "gateway";
         monitor = mkSystem "monitor";
+        nextcloud = mkSystem "nextcloud";
       };
     };
 }
