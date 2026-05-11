@@ -55,7 +55,7 @@ No changes to `common/base.nix`, `gateway`, `dev`, or `fragrance-app`.
 
 ### nextcloud host
 
-- **`services.nextcloud`**, package `pkgs.nextcloud31` (latest stable at time of writing)
+- **`services.nextcloud`**, package `pkgs.nextcloud32` (latest stable at time of writing)
   - `hostName = "nextcloud"` (tailnet MagicDNS)
   - `datadir = "/mnt/nextcloud-data"`
   - `database.createLocally = true`
@@ -63,7 +63,8 @@ No changes to `common/base.nix`, `gateway`, `dev`, or `fragrance-app`.
   - `configureRedis = true` → local Redis used for file locking + memcache
   - `config.adminuser = "jeff"`
   - `config.adminpassFile = "/etc/nextcloud-admin-pass"`
-  - `config.trustedDomains = [ "nextcloud" "nextcloud.<tailnet>.ts.net" ]` — replace `<tailnet>` with the actual tailnet name (e.g. `tail1234`); find it via `tailscale status --json | jq -r .MagicDNSSuffix`
+  - `settings.trusted_domains = [ "nextcloud.<tailnet>.ts.net" ]` — replace `<tailnet>` with the actual tailnet name (e.g. `tail1234`); find it via `tailscale status --json | jq -r .MagicDNSSuffix`
+  - `settings.default_phone_region = "US"` — silences the Nextcloud admin warning about an unset phone region
   - `https = false`
 - **`services.nginx`** — auto-enabled by the Nextcloud module; serves the app on port 80.
 - **`services.postgresql`** — auto-enabled; bound to localhost; peer auth on unix socket (no password file).

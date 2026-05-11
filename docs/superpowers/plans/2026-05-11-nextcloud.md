@@ -6,7 +6,7 @@
 
 **Architecture:** New `nextcloud` NixOS host added via the existing `mkSystem` helper in `flake.nix`. The host runs `services.nextcloud` (PostgreSQL + Redis enabled by the module), with `datadir` pointing at `/mnt/nextcloud-data` — an NFSv4 mount of `nas:/mnt/storage/nextcloud`. A pinned UID/GID (994) on both hosts keeps NFS ownership consistent. No public exposure: nginx binds 80 on `tailscale0` only.
 
-**Tech Stack:** NixOS unstable, Nix flakes, `services.nextcloud` (nextcloud31), PostgreSQL, Redis, NFSv4.
+**Tech Stack:** NixOS unstable, Nix flakes, `services.nextcloud` (nextcloud32), PostgreSQL, Redis, NFSv4.
 
 **Spec:** `docs/superpowers/specs/2026-05-11-nextcloud-design.md`
 
@@ -335,7 +335,7 @@ add (and replace `<tailnet>` with your actual tailnet name — find it with
 ```nix
   services.nextcloud = {
     enable = true;
-    package = pkgs.nextcloud31;
+    package = pkgs.nextcloud32;
     hostName = "nextcloud";
     datadir = "/mnt/nextcloud-data";
     https = false;
@@ -347,10 +347,13 @@ add (and replace `<tailnet>` with your actual tailnet name — find it with
       dbtype = "pgsql";
       adminuser = "jeff";
       adminpassFile = "/etc/nextcloud-admin-pass";
-      trustedDomains = [
-        "nextcloud"
+    };
+
+    settings = {
+      trusted_domains = [
         "nextcloud.<tailnet>.ts.net"
       ];
+      default_phone_region = "US";
     };
   };
 
@@ -594,7 +597,7 @@ systemctl status phpfpm-nextcloud postgresql redis-nextcloud nginx nextcloud-set
 # expected: all green; nextcloud-setup should show "succeeded" (oneshot)
 
 sudo -u nextcloud nextcloud-occ status
-# expected: installed: true, version: 31.x.x
+# expected: installed: true, version: 32.x.x
 ```
 
 - [ ] **Step 6: From another tailnet device, open the UI**
