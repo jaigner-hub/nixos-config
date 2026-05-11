@@ -33,7 +33,15 @@
 
   services.openssh.enable = true;
 
+  services.resolved.enable = true;
   services.tailscale.enable = true;
+
+  services.prometheus.exporters.node = {
+    enable = true;
+    enabledCollectors = [ "systemd" ];
+    port = 9100;
+    listenAddress = "0.0.0.0";
+  };
   networking.firewall = {
     trustedInterfaces = [ "tailscale0" ];
     allowedUDPPorts = [ config.services.tailscale.port ];

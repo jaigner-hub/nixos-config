@@ -20,6 +20,8 @@
         nas = mkSystem "nas";
         dev = mkSystem "dev";
         fragrance-app = mkSystem "fragrance-app";
+        gateway = mkSystem "gateway";
+        monitor = mkSystem "monitor";
       };
     };
 }
