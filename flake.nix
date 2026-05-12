@@ -23,6 +23,7 @@
         gateway = mkSystem "gateway";
         monitor = mkSystem "monitor";
         nextcloud = mkSystem "nextcloud";
+        vaultwarden = mkSystem "vaultwarden";
       };
     };
 }
