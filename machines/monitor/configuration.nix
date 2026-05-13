@@ -12,6 +12,8 @@ let
     "vaultwarden:9100"
     "adguard:9100"
   ];
+  b2Bucket = "Backup-jaigner-homelab";
+  b2Endpoint = "s3.us-east-005.backblazeb2.com";
 in
 {
   imports = [
@@ -78,6 +80,27 @@ in
         }
       ];
     };
+  };
+
+  # Daily encrypted backup of Grafana dashboards/config to B2.
+  # Prometheus metrics are intentionally excluded — too large, regenerable
+  # from the underlying exporters. Secrets at /etc/restic/{password,b2.env}.
+  services.restic.backups.grafana = {
+    paths = [ "/var/lib/grafana" ];
+    repository = "s3:https://${b2Endpoint}/${b2Bucket}/grafana";
+    passwordFile = "/etc/restic/password";
+    environmentFile = "/etc/restic/b2.env";
+    initialize = true;
+    timerConfig = {
+      OnCalendar = "daily";
+      Persistent = true;
+      RandomizedDelaySec = "1h";
+    };
+    pruneOpts = [
+      "--keep-daily 7"
+      "--keep-weekly 4"
+      "--keep-monthly 12"
+    ];
   };
 
   system.stateVersion = "25.11";
