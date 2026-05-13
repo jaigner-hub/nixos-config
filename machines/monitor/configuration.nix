@@ -14,6 +14,7 @@ let
     "nextcloud:9100"
     "vaultwarden:9100"
     "adguard:9100"
+    "adguard2:9100"
   ];
   b2Bucket = "Backup-jaigner-homelab";
   b2Endpoint = "s3.us-east-005.backblazeb2.com";
@@ -111,6 +112,20 @@ in
           name = "adguard-dns";
           group = "homelab";
           url = "tcp://adguard:53";
+          interval = "1m";
+          conditions = [ "[CONNECTED] == true" ];
+        }
+        {
+          name = "adguard2-ui";
+          group = "homelab";
+          url = "https://adguard2.${tailnet}/";
+          interval = "1m";
+          conditions = [ "[STATUS] == 200" "[CERTIFICATE_EXPIRATION] > 168h" ];
+        }
+        {
+          name = "adguard2-dns";
+          group = "homelab";
+          url = "tcp://adguard2:53";
           interval = "1m";
           conditions = [ "[CONNECTED] == true" ];
         }

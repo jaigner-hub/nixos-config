@@ -18,6 +18,7 @@
         "nextcloud"
         "vaultwarden"
         "adguard"
+        "adguard2"
       ];
 
       # Directory name == tailscale MagicDNS name, except `nas` uses hostname `nass`.

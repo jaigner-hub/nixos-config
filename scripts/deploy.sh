@@ -12,6 +12,7 @@ cd "$(dirname "$0")/.."
 # Mirrors flake.nix:targetHostFor — directory name → ssh hostname.
 declare -A SSH_TARGET=(
   [adguard]=adguard
+  [adguard2]=adguard2
   [dev]=dev
   [monitor]=monitor
   [nas]=nass
