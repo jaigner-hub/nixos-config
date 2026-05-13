@@ -1,11 +1,9 @@
 { config, lib, pkgs, modulesPath, ... }:
 
-# Placeholder hardware-configuration.nix.
-# Replace with the output of `nixos-generate-config --show-hardware-config`
-# on the target machine before deploying.
-
 {
-  imports = [ ];
+  imports = [
+    (modulesPath + "/profiles/qemu-guest.nix")
+  ];
 
   boot.initrd.availableKernelModules = [ "ata_piix" "uhci_hcd" "virtio_pci" "virtio_scsi" "sd_mod" "sr_mod" ];
   boot.initrd.kernelModules = [ ];
@@ -13,12 +11,12 @@
   boot.extraModulePackages = [ ];
 
   fileSystems."/" = {
-    device = "/dev/disk/by-label/nixos";
+    device = "/dev/disk/by-uuid/94ebc6f2-0065-4f7d-aa3f-e504bf73f933";
     fsType = "ext4";
   };
 
   fileSystems."/boot" = {
-    device = "/dev/disk/by-label/boot";
+    device = "/dev/disk/by-uuid/583C-E5A9";
     fsType = "vfat";
     options = [ "fmask=0077" "dmask=0077" ];
   };
