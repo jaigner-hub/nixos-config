@@ -33,6 +33,8 @@
 
   services.openssh.enable = true;
 
+  services.qemuGuest.enable = true;
+
   services.resolved.enable = true;
   services.tailscale.enable = true;
 
