@@ -72,6 +72,7 @@
     tmux
     rsync
     tree
+    bat
     unzip
     lsof
     tcpdump
