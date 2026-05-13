@@ -17,6 +17,7 @@ declare -A SSH_TARGET=(
   [monitor]=monitor
   [nas]=nass
   [nextcloud]=nextcloud
+  [paperless]=paperless
   [vaultwarden]=vaultwarden
 )
 

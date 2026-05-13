@@ -15,6 +15,7 @@ let
     "vaultwarden:9100"
     "adguard:9100"
     "adguard2:9100"
+    "paperless:9100"
   ];
   b2Bucket = "Backup-jaigner-homelab";
   b2Endpoint = "s3.us-east-005.backblazeb2.com";
@@ -142,6 +143,13 @@ in
           url = "http://nextcloud/status.php";
           interval = "1m";
           conditions = [ "[STATUS] == 200" "[BODY].installed == true" ];
+        }
+        {
+          name = "paperless";
+          group = "homelab";
+          url = "https://paperless.${tailnet}/";
+          interval = "1m";
+          conditions = [ "[STATUS] == 200" "[CERTIFICATE_EXPIRATION] > 168h" ];
         }
         {
           name = "jellyfin";
