@@ -13,8 +13,6 @@ cd "$(dirname "$0")/.."
 declare -A SSH_TARGET=(
   [adguard]=adguard
   [dev]=dev
-  [fragrance-app]=fragrance-app
-  [gateway]=gateway
   [monitor]=monitor
   [nas]=nass
   [nextcloud]=nextcloud

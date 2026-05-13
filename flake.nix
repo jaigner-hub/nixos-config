@@ -14,8 +14,6 @@
       hostNames = [
         "nas"
         "dev"
-        "fragrance-app"
-        "gateway"
         "monitor"
         "nextcloud"
         "vaultwarden"

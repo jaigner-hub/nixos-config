@@ -9,10 +9,8 @@ let
   # Hosts to scrape node_exporter on. Names resolve over Tailscale MagicDNS.
   scrapeTargets = [
     "monitor:9100"
-    "gateway:9100"
     "nass:9100"
     "dev:9100"
-    "fragrance-app:9100"
     "nextcloud:9100"
     "vaultwarden:9100"
     "adguard:9100"
@@ -65,9 +63,6 @@ in
       server = {
         http_addr = "0.0.0.0";
         http_port = 3000;
-        # Expose this externally by reverse-proxying through `gateway`'s Caddy:
-        #   reverse_proxy http://monitor:3000
-        # and setting root_url to the public URL.
         root_url = "http://monitor:3000/";
       };
       analytics.reporting_enabled = false;
@@ -141,13 +136,6 @@ in
           conditions = [ "[STATUS] == 200" ];
         }
         {
-          name = "fragrance-app";
-          group = "homelab";
-          url = "http://fragrance-app/";
-          interval = "1m";
-          conditions = [ "[STATUS] == 200" ];
-        }
-        {
           name = "grafana";
           group = "internal";
           url = "http://localhost:3000/api/health";
@@ -160,13 +148,6 @@ in
           url = "http://localhost:9090/-/healthy";
           interval = "1m";
           conditions = [ "[STATUS] == 200" ];
-        }
-        {
-          name = "gateway-ping";
-          group = "homelab";
-          url = "icmp://gateway";
-          interval = "1m";
-          conditions = [ "[CONNECTED] == true" ];
         }
       ];
     };

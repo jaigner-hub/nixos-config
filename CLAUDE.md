@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository purpose
 
-Multi-machine NixOS flake managing a small homelab. Hosts: `nas`, `dev`, `fragrance-app`, `gateway`, `monitor`, `nextcloud`, `vaultwarden`, `adguard`. All machines share `common/base.nix` and are wired up through `flake.nix` via a `mkSystem` helper. The same host list is exposed as a [Colmena](https://colmena.cli.rs/) hive for fleet-wide deploys.
+Multi-machine NixOS flake managing a small homelab. Hosts: `nas`, `dev`, `monitor`, `nextcloud`, `vaultwarden`, `adguard`. All machines share `common/base.nix` and are wired up through `flake.nix` via a `mkSystem` helper. The same host list is exposed as a [Colmena](https://colmena.cli.rs/) hive for fleet-wide deploys.
 
 ## Common commands
 
@@ -51,10 +51,9 @@ First-time deploy requires a manual step because `colmena` needs `jeff` in `nix.
 
 - `nas` — Jellyfin + Samba over a mergerfs union of `/mnt/hdd1` + `/mnt/hdd2` mounted at `/mnt/storage`. The `putio-sync` systemd timer fires every 15 minutes and reads secrets from `/etc/putio-sync.env` (not in the repo). Hostname is `nass` (intentional, not a typo of the directory name).
 - `dev` — Docker-enabled workstation with Python/Node/MariaDB-client toolchain. `jeff` is added to the `docker` group here.
-- `fragrance-app` — Django app served by gunicorn over a unix socket at `/run/fragrance-app/gunicorn.sock`, fronted by nginx on 80/443. A dedicated `fragrance-app` system user owns `/srv/fragrance-app`; the venv lives at `/srv/fragrance-app/venv` and the WSGI entrypoint is `fragrance_app.wsgi:application`. MariaDB is provisioned declaratively with database `fragrance_app`. Runtime env comes from `/etc/fragrance-app.env` (not in the repo). nginx is added to the app's group so it can read `static/` and `media/`.
 
 ## Conventions
 
 - New shared options go in `common/base.nix`; per-host options go in `machines/<name>/configuration.nix`. Avoid duplicating settings across machine files.
 - When adding a flake input that a machine module needs to consume, thread it through `mkSystem`'s `specialArgs` (follow the `claude-code-nix` pattern) rather than relying on `inputs` being globally available.
-- Secrets (`/etc/putio-sync.env`, `/etc/fragrance-app.env`, etc.) are referenced by path from the Nix configs but are provisioned out-of-band — do not commit them.
+- Secrets (`/etc/putio-sync.env`, etc.) are referenced by path from the Nix configs but are provisioned out-of-band — do not commit them.
