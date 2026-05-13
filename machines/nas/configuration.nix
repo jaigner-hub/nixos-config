@@ -5,6 +5,8 @@ let
     requests
   ]);
   syncScript = pkgs.writeScriptBin "putio-sync" (builtins.readFile ../../scripts/putio-sync.py);
+  b2Bucket = "Backup-jaigner-homelab";
+  b2Endpoint = "s3.us-east-005.backblazeb2.com";
 in
 {
   imports = [
@@ -112,6 +114,33 @@ in
     timerConfig = {
       OnCalendar = "*:0/15";
     };
+  };
+
+  # Daily encrypted backup of Nextcloud data (files + nightly DB dump) to B2.
+  # The DB dump is produced on the nextcloud host's nextcloud-db-backup timer
+  # at 03:00 into /mnt/storage/nextcloud/.db-backup/, so this fires at 04:00
+  # to ensure the dump is captured in the same snapshot.
+  #
+  # Backing up here (where the files live) avoids pulling all Nextcloud data
+  # back over NFS just to ship it offsite.
+  #
+  # Secrets at /etc/restic/{password,b2.env}, same format as on vaultwarden.
+  services.restic.backups.nextcloud = {
+    paths = [ "/mnt/storage/nextcloud" ];
+    repository = "s3:https://${b2Endpoint}/${b2Bucket}/nextcloud";
+    passwordFile = "/etc/restic/password";
+    environmentFile = "/etc/restic/b2.env";
+    initialize = true;
+    timerConfig = {
+      OnCalendar = "*-*-* 04:00:00";
+      Persistent = true;
+      RandomizedDelaySec = "30m";
+    };
+    pruneOpts = [
+      "--keep-daily 7"
+      "--keep-weekly 4"
+      "--keep-monthly 12"
+    ];
   };
 
   system.stateVersion = "25.11";
