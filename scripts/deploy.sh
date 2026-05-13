@@ -4,6 +4,7 @@
 # Usage:
 #   scripts/deploy.sh                  # detect reachable hosts and deploy to those
 #   scripts/deploy.sh adguard nas      # deploy to specific hosts (directory names)
+#   scripts/deploy.sh --upgrade        # `nix flake update` first, then deploy everything
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -20,12 +21,40 @@ declare -A SSH_TARGET=(
   [vaultwarden]=vaultwarden
 )
 
-case "${1:-}" in
-  -h|--help)
-    sed -n '2,/^set/p' "$0" | sed 's/^# \{0,1\}//; /^set/d'
-    exit 0
-    ;;
-esac
+upgrade=false
+positional=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -h|--help)
+      sed -n '2,/^set/p' "$0" | sed 's/^# \{0,1\}//; /^set/d'
+      exit 0
+      ;;
+    -u|--upgrade)
+      upgrade=true
+      shift
+      ;;
+    --)
+      shift
+      positional+=("$@")
+      break
+      ;;
+    -*)
+      echo "Unknown flag: $1" >&2
+      exit 2
+      ;;
+    *)
+      positional+=("$1")
+      shift
+      ;;
+  esac
+done
+set -- "${positional[@]}"
+
+if [ "$upgrade" = true ]; then
+  echo "Updating flake inputs..."
+  nix flake update
+  echo
+fi
 
 if [ $# -gt 0 ]; then
   targets=("$@")
