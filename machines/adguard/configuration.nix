@@ -19,9 +19,7 @@ in
   # AdGuard binds 0.0.0.0:53 for DNS. systemd-resolved's stub listener on
   # 127.0.0.53:53 would collide, so disable the stub. Resolved itself stays
   # enabled for its bus API; local lookups route through AdGuard via 127.0.0.1.
-  services.resolved.extraConfig = ''
-    DNSStubListener=no
-  '';
+  services.resolved.settings.Resolve.DNSStubListener = false;
   networking.nameservers = [ "127.0.0.1" "1.1.1.1" ];
 
   services.adguardhome = {
