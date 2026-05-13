@@ -82,23 +82,32 @@ in
 
   networking.firewall.interfaces.tailscale0.allowedTCPPorts = [ 2049 ];
 
-  fileSystems."/mnt/hdd1" = {
-    device = "/dev/disk/by-uuid/ca1567d9-3634-4e46-acd9-545d7525371b";
-    fsType = "ext4";
-    options = [ "nofail" "x-systemd.device-timeout=1" ];
-  };
+  # TODO: re-enable once the physical disks are attached. Until then,
+  # /mnt/storage is a plain directory on the root filesystem (created
+  # by the tmpfiles rule below) so Samba/NFS/restic don't choke on a
+  # missing path. Anything written here is TEMPORARY.
+  # fileSystems."/mnt/hdd1" = {
+  #   device = "/dev/disk/by-uuid/ca1567d9-3634-4e46-acd9-545d7525371b";
+  #   fsType = "ext4";
+  #   options = [ "nofail" "x-systemd.device-timeout=1" ];
+  # };
+  #
+  # fileSystems."/mnt/hdd2" = {
+  #   device = "/dev/disk/by-uuid/f15c866f-d200-4b12-866f-bd36c79c626b";
+  #   fsType = "ext4";
+  #   options = [ "nofail" "x-systemd.device-timeout=1" ];
+  # };
+  #
+  # fileSystems."/mnt/storage" = {
+  #   device = "/mnt/hdd1:/mnt/hdd2";
+  #   fsType = "fuse.mergerfs";
+  #   options = [ "nofail" "x-systemd.device-timeout=1" ];
+  # };
 
-  fileSystems."/mnt/hdd2" = {
-    device = "/dev/disk/by-uuid/f15c866f-d200-4b12-866f-bd36c79c626b";
-    fsType = "ext4";
-    options = [ "nofail" "x-systemd.device-timeout=1" ];
-  };
-
-  fileSystems."/mnt/storage" = {
-    device = "/mnt/hdd1:/mnt/hdd2";
-    fsType = "fuse.mergerfs";
-    options = [ "nofail" "x-systemd.device-timeout=1" ];
-  };
+  systemd.tmpfiles.rules = [
+    "d /mnt/storage 0755 root root -"
+    "d /mnt/storage/nextcloud 0700 nextcloud nextcloud -"
+  ];
 
   systemd.services.putio-sync = {
     description = "put.io sync";
