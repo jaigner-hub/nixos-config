@@ -10,6 +10,7 @@ let
     "fragrance-app:9100"
     "nextcloud:9100"
     "vaultwarden:9100"
+    "adguard:9100"
   ];
 in
 {
