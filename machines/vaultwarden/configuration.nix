@@ -4,6 +4,8 @@ let
   tailnet = "tail1ec6c3.ts.net";
   fqdn = "vaultwarden.${tailnet}";
   certDir = "/var/lib/tailscale-cert";
+  b2Bucket = "Backup-jaigner-homelab";
+  b2Endpoint = "s3.us-east-005.backblazeb2.com";
 in
 {
   imports = [
@@ -51,6 +53,33 @@ in
         proxyWebsockets = true;
       };
     };
+  };
+
+  # Daily encrypted backup to B2 via its S3-compatible API. Reads
+  # /var/backup/vaultwarden — that directory contains a consistent sqlite
+  # snapshot produced by the vaultwarden service via its own backupDir
+  # setting, so restic doesn't need a prepare hook.
+  #
+  # Secrets provisioned out-of-band:
+  #   /etc/restic/password — single line, restic repo encryption password
+  #   /etc/restic/b2.env   — AWS_ACCESS_KEY_ID=<B2 keyID>
+  #                          AWS_SECRET_ACCESS_KEY=<B2 applicationKey>
+  services.restic.backups.vaultwarden = {
+    paths = [ "/var/backup/vaultwarden" ];
+    repository = "s3:https://${b2Endpoint}/${b2Bucket}/vaultwarden";
+    passwordFile = "/etc/restic/password";
+    environmentFile = "/etc/restic/b2.env";
+    initialize = true;
+    timerConfig = {
+      OnCalendar = "daily";
+      Persistent = true;
+      RandomizedDelaySec = "1h";
+    };
+    pruneOpts = [
+      "--keep-daily 7"
+      "--keep-weekly 4"
+      "--keep-monthly 12"
+    ];
   };
 
   networking.firewall.interfaces.tailscale0.allowedTCPPorts = [ 443 ];
