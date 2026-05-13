@@ -4,6 +4,10 @@
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
   nix.settings.trusted-users = [ "root" "jeff" ];
 
+  # Passwordless wheel so `colmena apply` can activate non-interactively.
+  # Access is gated by key-only SSH + tailscale-only firewall.
+  security.sudo.wheelNeedsPassword = false;
+
   time.timeZone = "America/Chicago";
 
   i18n.defaultLocale = "en_US.UTF-8";
