@@ -20,6 +20,13 @@ declare -A SSH_TARGET=(
   [vaultwarden]=vaultwarden
 )
 
+case "${1:-}" in
+  -h|--help)
+    sed -n '2,/^set/p' "$0" | sed 's/^# \{0,1\}//; /^set/d'
+    exit 0
+    ;;
+esac
+
 if [ $# -gt 0 ]; then
   targets=("$@")
 else
@@ -44,4 +51,12 @@ on=$(IFS=,; echo "${targets[*]}")
 echo
 echo "Deploying to: $on"
 echo
-exec nix run nixpkgs#colmena -- apply --on "$on"
+
+extra=()
+if ! git diff --quiet HEAD -- 2>/dev/null || [ -n "$(git status --porcelain 2>/dev/null)" ]; then
+  echo "  (working tree dirty — passing --impure to colmena)"
+  echo
+  extra+=(--impure)
+fi
+
+exec nix run nixpkgs#colmena -- "${extra[@]}" apply --on "$on"
