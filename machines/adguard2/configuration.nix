@@ -34,6 +34,16 @@ in
     openFirewall = false;
     mutableSettings = true;
     settings = {
+      # Admin user (same as `adguard`). Without this AdGuard ships with
+      # `users: []` which leaves the admin UI completely unauthenticated
+      # to anyone on the tailnet. Hash is bcrypt, safe to commit.
+      users = [
+        {
+          name = "jeff";
+          password = "$2b$10$VEJAfkz3u3EGTPYQFxz6hOptf1nJe1.7Q4DaaN4nSZbdqzgN2IDoG";
+        }
+      ];
+
       http = {
         address = "127.0.0.1:3000";
       };

@@ -32,6 +32,17 @@ in
     # re-applying the declared settings below on each rebuild.
     mutableSettings = true;
     settings = {
+      # Admin user. Without this AdGuard ships with `users: []` which leaves
+      # the admin UI completely unauthenticated to anyone on the tailnet —
+      # tailscale ACLs are the only thing gating it. Hash is bcrypt
+      # (`htpasswd -bnBC 10 jeff <password>`), safe to commit.
+      users = [
+        {
+          name = "jeff";
+          password = "$2b$10$VEJAfkz3u3EGTPYQFxz6hOptf1nJe1.7Q4DaaN4nSZbdqzgN2IDoG";
+        }
+      ];
+
       http = {
         # Bind the web UI to loopback; nginx terminates TLS and proxies in.
         address = "127.0.0.1:3000";
