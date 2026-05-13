@@ -18,15 +18,24 @@ Run from `/etc/nixos` (or any checkout). The `#<host>` selector picks one of the
 
 ### Fleet deploys with Colmena
 
-Drives every host in the hive from one machine. Run from anywhere with `nix` installed; targets connect over SSH as `jeff` and use `sudo` (will prompt unless you've set up passwordless wheel).
+Drives every host in the hive from one machine. Run from anywhere with `nix` installed; targets connect over SSH as `jeff` (key-only, passwordless wheel).
 
-- List hive nodes: `nix run nixpkgs#colmena -- eval -E '{ nodes, ... }: builtins.attrNames nodes'`
-- Build every host without pushing: `nix run nixpkgs#colmena -- build`
-- Deploy to every host: `nix run nixpkgs#colmena -- apply`
-- Deploy to one host: `nix run nixpkgs#colmena -- apply --on nas`
-- Deploy with `switch` semantics (default is `switch`; others: `boot`, `test`, `dry-activate`): `nix run nixpkgs#colmena -- apply boot`
+- **`scripts/deploy.sh`** — probes which hosts are reachable, then deploys to those. Pass host names to limit (e.g. `scripts/deploy.sh adguard nas`). This is the day-to-day command.
+- Raw colmena:
+  - List hive nodes: `nix run nixpkgs#colmena -- eval -E '{ nodes, ... }: builtins.attrNames nodes'`
+  - Build every host without pushing: `nix run nixpkgs#colmena -- build`
+  - Deploy to one host: `nix run nixpkgs#colmena -- apply --on nas`
+  - Deploy with non-default semantics (`boot`, `test`, `dry-activate` instead of the default `switch`): `nix run nixpkgs#colmena -- apply boot`
 
-Target hostnames default to the directory name (resolved via Tailscale MagicDNS). The `nas` directory targets the `nass` hostname — overridden in `flake.nix:targetHostFor`. Add `--impure` if the working tree is dirty.
+Target hostnames default to the directory name (resolved via Tailscale MagicDNS). The `nas` directory targets the `nass` hostname — overridden in `flake.nix:targetHostFor` and mirrored in `scripts/deploy.sh:SSH_TARGET`. Add `--impure` if the working tree is dirty.
+
+#### Bootstrapping a new host
+
+First-time deploy requires a manual step because `colmena` needs `jeff` in `nix.settings.trusted-users` and passwordless `sudo` on the target, both of which only land *after* the new config is activated. Bootstrap:
+
+1. From the host's console (or SSH): `nixos-generate-config --show-hardware-config` and replace `machines/<host>/hardware-configuration.nix` with that output (the committed placeholder uses `by-label` paths that won't exist on cloned VMs).
+2. `sudo nixos-rebuild boot --flake github:jaigner-hub/nixos-config#<host>` then reboot. Using `boot` (not `switch`) avoids live-restarting `boot.mount`, which can hang when the disk layout changes.
+3. After it comes back up, `scripts/deploy.sh <host>` works going forward.
 
 `putio-sync.py` (run on `nas` only) supports `--dry-run` and `--seed` flags; it reads its token from `/etc/putio-sync.env` (via the systemd unit), `PUTIO_TOKEN`, or `~/.config/putio-sync/config.json`.
 
