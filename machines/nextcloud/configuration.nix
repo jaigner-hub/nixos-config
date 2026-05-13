@@ -66,5 +66,44 @@
     requires = [ "mnt-nextcloud\\x2ddata.mount" ];
   };
 
+  # Daily Postgres dump into the NFS-mounted data dir. The NAS's restic
+  # backup of /mnt/storage/nextcloud runs an hour later and sweeps this up,
+  # so a single restic restore brings back both files and DB.
+  #
+  # Runs as the nextcloud Linux user (peer auth → nextcloud PG role).
+  # No superuser needed thanks to --no-owner --no-privileges.
+  # No maintenance mode toggle: for personal homelab use at a quiet hour,
+  # the risk of a torn dump is small. Wrap pg_dump with
+  # `${pkgs.nextcloud32-occ}/bin/nextcloud-occ maintenance:mode --on/--off`
+  # if you ever need fully consistent snapshots.
+  systemd.services.nextcloud-db-backup = {
+    description = "Dump Nextcloud Postgres DB to NFS for offsite backup";
+    after = [ "postgresql.service" "mnt-nextcloud\\x2ddata.mount" ];
+    requires = [ "postgresql.service" "mnt-nextcloud\\x2ddata.mount" ];
+    serviceConfig = {
+      Type = "oneshot";
+      User = "nextcloud";
+      Group = "nextcloud";
+    };
+    script = ''
+      set -euo pipefail
+      backupDir=/mnt/nextcloud-data/.db-backup
+      mkdir -p "$backupDir"
+      ${config.services.postgresql.package}/bin/pg_dump \
+        --clean --no-owner --no-privileges nextcloud \
+        | ${pkgs.gzip}/bin/gzip > "$backupDir/nextcloud.sql.gz.tmp"
+      mv "$backupDir/nextcloud.sql.gz.tmp" "$backupDir/nextcloud.sql.gz"
+    '';
+  };
+
+  systemd.timers.nextcloud-db-backup = {
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnCalendar = "*-*-* 03:00:00";
+      Persistent = true;
+      RandomizedDelaySec = "30m";
+    };
+  };
+
   system.stateVersion = "25.11";
 }
