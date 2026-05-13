@@ -68,10 +68,21 @@ in
     description = "Nextcloud data owner (NFS UID/GID parity)";
   };
 
+  users.groups.immich = {
+    gid = 5001;
+  };
+  users.users.immich = {
+    isSystemUser = true;
+    group = "immich";
+    uid = 5001;
+    description = "Immich data owner (NFS UID/GID parity)";
+  };
+
   services.nfs.server = {
     enable = true;
     exports = ''
       /mnt/storage/nextcloud 100.64.0.0/10(rw,sync,no_subtree_check,no_root_squash)
+      /mnt/storage/immich    100.64.0.0/10(rw,sync,no_subtree_check,no_root_squash)
     '';
   };
 
@@ -107,6 +118,7 @@ in
   systemd.tmpfiles.rules = [
     "d /mnt/storage 0755 root root -"
     "d /mnt/storage/nextcloud 0700 nextcloud nextcloud -"
+    "d /mnt/storage/immich 0700 immich immich -"
   ];
 
   systemd.services.putio-sync = {
@@ -142,6 +154,28 @@ in
     initialize = true;
     timerConfig = {
       OnCalendar = "*-*-* 04:00:00";
+      Persistent = true;
+      RandomizedDelaySec = "30m";
+    };
+    pruneOpts = [
+      "--keep-daily 7"
+      "--keep-weekly 4"
+      "--keep-monthly 12"
+    ];
+  };
+
+  # Same pattern as nextcloud: the immich host dumps its Postgres DB into
+  # /mnt/storage/immich/.db-backup/ at 03:00, and this picks it up an hour
+  # later alongside the originals + ML data. Photo libraries can grow large
+  # — keep an eye on B2 spend; tighten pruneOpts if cost becomes an issue.
+  services.restic.backups.immich = {
+    paths = [ "/mnt/storage/immich" ];
+    repository = "s3:https://${b2Endpoint}/${b2Bucket}/immich";
+    passwordFile = "/etc/restic/password";
+    environmentFile = "/etc/restic/b2.env";
+    initialize = true;
+    timerConfig = {
+      OnCalendar = "*-*-* 04:30:00";
       Persistent = true;
       RandomizedDelaySec = "30m";
     };

@@ -20,6 +20,7 @@
         "adguard"
         "adguard2"
         "paperless"
+        "immich"
       ];
 
       # Directory name == tailscale MagicDNS name, except `nas` uses hostname `nass`.

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository purpose
 
-Multi-machine NixOS flake managing a small homelab. Hosts: `nas`, `dev`, `monitor`, `nextcloud`, `vaultwarden`, `adguard`. All machines share `common/base.nix` and are wired up through `flake.nix` via a `mkSystem` helper. The same host list is exposed as a [Colmena](https://colmena.cli.rs/) hive for fleet-wide deploys.
+Multi-machine NixOS flake managing a small homelab. Hosts: `nas`, `dev`, `monitor`, `nextcloud`, `vaultwarden`, `adguard`, `adguard2`, `paperless`, `immich`. All machines share `common/base.nix` and are wired up through `flake.nix` via a `mkSystem` helper. The same host list is exposed as a [Colmena](https://colmena.cli.rs/) hive for fleet-wide deploys.
 
 ## Common commands
 
