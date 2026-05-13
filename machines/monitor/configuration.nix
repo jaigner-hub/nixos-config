@@ -2,7 +2,9 @@
 
 let
   tailnet = "tail1ec6c3.ts.net";
-  fqdn = "gatus.${tailnet}";
+  # Tailscale only issues certs for the node's own MagicDNS name, so we
+  # serve gatus at https://monitor.<tailnet>/ rather than a custom subdomain.
+  fqdn = "monitor.${tailnet}";
   certDir = "/var/lib/tailscale-cert";
   # Hosts to scrape node_exporter on. Names resolve over Tailscale MagicDNS.
   scrapeTargets = [
