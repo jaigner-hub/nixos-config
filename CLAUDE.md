@@ -4,11 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository purpose
 
-Multi-machine NixOS flake managing a small homelab. Three hosts are defined: `nas`, `dev`, and `fragrance-app`. All machines share `common/base.nix` and are wired up through `flake.nix` via a `mkSystem` helper.
+Multi-machine NixOS flake managing a small homelab. Hosts: `nas`, `dev`, `fragrance-app`, `gateway`, `monitor`, `nextcloud`, `vaultwarden`, `adguard`. All machines share `common/base.nix` and are wired up through `flake.nix` via a `mkSystem` helper. The same host list is exposed as a [Colmena](https://colmena.cli.rs/) hive for fleet-wide deploys.
 
 ## Common commands
 
-Run from `/etc/nixos`. The `#<host>` selector picks one of `nas`, `dev`, `fragrance-app`.
+Run from `/etc/nixos` (or any checkout). The `#<host>` selector picks one of the hosts listed above.
 
 - Apply config on the current machine: `sudo nixos-rebuild switch --flake .#<host>`
 - Dry-build without activating: `sudo nixos-rebuild build --flake .#<host>`
@@ -16,11 +16,23 @@ Run from `/etc/nixos`. The `#<host>` selector picks one of `nas`, `dev`, `fragra
 - Validate the flake: `nix flake check`
 - Update inputs (`nixpkgs`, `claude-code-nix`): `nix flake update`
 
+### Fleet deploys with Colmena
+
+Drives every host in the hive from one machine. Run from anywhere with `nix` installed; targets connect over SSH as `jeff` and use `sudo` (will prompt unless you've set up passwordless wheel).
+
+- List hive nodes: `nix run nixpkgs#colmena -- eval -E '{ nodes, ... }: builtins.attrNames nodes'`
+- Build every host without pushing: `nix run nixpkgs#colmena -- build`
+- Deploy to every host: `nix run nixpkgs#colmena -- apply`
+- Deploy to one host: `nix run nixpkgs#colmena -- apply --on nas`
+- Deploy with `switch` semantics (default is `switch`; others: `boot`, `test`, `dry-activate`): `nix run nixpkgs#colmena -- apply boot`
+
+Target hostnames default to the directory name (resolved via Tailscale MagicDNS). The `nas` directory targets the `nass` hostname — overridden in `flake.nix:targetHostFor`. Add `--impure` if the working tree is dirty.
+
 `putio-sync.py` (run on `nas` only) supports `--dry-run` and `--seed` flags; it reads its token from `/etc/putio-sync.env` (via the systemd unit), `PUTIO_TOKEN`, or `~/.config/putio-sync/config.json`.
 
 ## Architecture
 
-- `flake.nix` — single `mkSystem` helper builds each `nixosSystem`, threading the `claude-code-nix` input through `specialArgs` so every machine module receives it as a function argument. Add a host by creating `machines/<name>/{configuration,hardware-configuration}.nix` and adding it to `nixosConfigurations`.
+- `flake.nix` — `mkSystem` helper builds each `nixosSystem`, threading the `claude-code-nix` input through `specialArgs`. The host list lives once in the `hostNames` let-binding and feeds both `nixosConfigurations` (via `mkSystem`) and `colmena` (via `mkColmenaNode`). Add a host by creating `machines/<name>/{configuration,hardware-configuration}.nix` and appending `<name>` to `hostNames`.
 - `common/base.nix` — shared baseline: flakes enabled, locale/timezone, the `jeff` user with a single authorized SSH key, OpenSSH, `claude-code-nix` package, and the VM-variant root autologin override. Everything common to all hosts belongs here, not in a per-host file.
 - `machines/<name>/configuration.nix` — host-specific module. Each one imports `../../common/base.nix` and its sibling `hardware-configuration.nix`, sets `networking.hostName`, and adds host-specific services/packages.
 - `machines/<name>/hardware-configuration.nix` — **placeholders**. The committed files describe a generic virtio disk for VM builds. Before deploying to real hardware, replace with the output of `nixos-generate-config --show-hardware-config` on the target. Do not "fix" the placeholder to match a specific machine in this repo — it intentionally stays generic so `build-vm` works for every host.
