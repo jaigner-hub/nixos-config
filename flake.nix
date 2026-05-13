@@ -24,6 +24,7 @@
         monitor = mkSystem "monitor";
         nextcloud = mkSystem "nextcloud";
         vaultwarden = mkSystem "vaultwarden";
+        adguard = mkSystem "adguard";
       };
     };
 }
