@@ -4,6 +4,8 @@ let
   tailnet = "tail1ec6c3.ts.net";
   fqdn = "adguard.${tailnet}";
   certDir = "/var/lib/tailscale-cert";
+  b2Bucket = "Backup-jaigner-homelab";
+  b2Endpoint = "s3.us-east-005.backblazeb2.com";
 in
 {
   imports = [
@@ -127,6 +129,28 @@ in
       Persistent = true;
       RandomizedDelaySec = "1h";
     };
+  };
+
+  # Daily encrypted backup of AdGuard state (config + filters + stats DB)
+  # to B2. Tiny, but useful so a rebuild doesn't lose your blocklist tweaks
+  # and query history. Secrets at /etc/restic/{password,b2.env}, see
+  # vaultwarden config for the format.
+  services.restic.backups.adguard = {
+    paths = [ "/var/lib/AdGuardHome" ];
+    repository = "s3:https://${b2Endpoint}/${b2Bucket}/adguard";
+    passwordFile = "/etc/restic/password";
+    environmentFile = "/etc/restic/b2.env";
+    initialize = true;
+    timerConfig = {
+      OnCalendar = "daily";
+      Persistent = true;
+      RandomizedDelaySec = "1h";
+    };
+    pruneOpts = [
+      "--keep-daily 7"
+      "--keep-weekly 4"
+      "--keep-monthly 12"
+    ];
   };
 
   system.stateVersion = "25.11";
