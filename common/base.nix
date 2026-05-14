@@ -1,4 +1,4 @@
-{ config, pkgs, claude-code-nix, ... }:
+{ config, pkgs, claude-code-nix, hostKey, ... }:
 
 {
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
@@ -82,7 +82,16 @@
     claude-code-nix.packages.${pkgs.system}.default
   ];
 
-  system.autoUpgrade.enable = true;
+  # Pull-based auto-update from GitHub (source of truth). Each host fetches
+  # the latest commit on `main` daily and switches. Uses `${hostKey}` (set in
+  # flake.nix) rather than `networking.hostName` so the `nas` host (hostname
+  # "nass") still resolves to the `nas` flake output.
+  system.autoUpgrade = {
+    enable = true;
+    flake = "github:jaigner-hub/nixos-config#${hostKey}";
+    randomizedDelaySec = "30min";
+    allowReboot = false;
+  };
 
   virtualisation.vmVariant = {
     services.getty.autologinUser = "root";

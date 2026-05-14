@@ -28,7 +28,7 @@
 
       mkSystem = name: lib.nixosSystem {
         inherit system;
-        specialArgs = { inherit claude-code-nix; };
+        specialArgs = { inherit claude-code-nix; hostKey = name; };
         modules = [ ./machines/${name}/configuration.nix ];
       };
 
@@ -37,6 +37,7 @@
           targetHost = targetHostFor name;
           targetUser = "jeff";
         };
+        _module.args.hostKey = name;
         imports = [ ./machines/${name}/configuration.nix ];
       };
     in {
