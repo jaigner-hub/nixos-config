@@ -121,6 +121,10 @@ in
     "d /mnt/storage 0755 root root -"
     "d /mnt/storage/nextcloud 0700 nextcloud nextcloud -"
     "d /mnt/storage/immich 0700 immich immich -"
+    # Writable drop-zone for filebrowser. /mnt/storage itself is
+    # 0755 root:root so filebrowser can list it but not create files
+    # there — this gives it one subdirectory it owns for share-link use.
+    "d /mnt/storage/shared 0755 filebrowser filebrowser -"
   ];
 
   systemd.services.putio-sync = {
