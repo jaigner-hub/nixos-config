@@ -1,5 +1,9 @@
 { config, pkgs, claude-code-nix, ... }:
 
+let
+  publicFqdn = "nextcloud.youtalklikeafag.com";
+  tunnelId = "d35e5eb5-4734-453e-b5ea-ddf4506b5d3c";
+in
 {
   imports = [
     ../../common/base.nix
@@ -50,8 +54,31 @@
     settings = {
       trusted_domains = [
         "nextcloud.tail1ec6c3.ts.net"
+        publicFqdn
       ];
       default_phone_region = "US";
+    };
+  };
+
+  # Public access via Cloudflare Tunnel. The outbound cloudflared daemon
+  # holds a connection to Cloudflare's edge and forwards requests to
+  # nextcloud on loopback; TLS terminates at the edge. Tailnet access
+  # over `*.ts.net` still goes direct to port 80 on this host.
+  #
+  # Credentials provisioned out-of-band at /etc/cloudflared/<uuid>.json
+  # (root:root 0600). The nixpkgs module uses DynamicUser + LoadCredential,
+  # so systemd reads the file as root before privilege drop. After the
+  # first deploy: `sudo mkdir -p /etc/cloudflared && sudo install -m 600
+  # -o root -g root <src> /etc/cloudflared/${tunnelId}.json` then restart
+  # the unit.
+  services.cloudflared = {
+    enable = true;
+    tunnels.${tunnelId} = {
+      credentialsFile = "/etc/cloudflared/${tunnelId}.json";
+      default = "http_status:404";
+      ingress = {
+        ${publicFqdn} = "http://127.0.0.1:80";
+      };
     };
   };
 
