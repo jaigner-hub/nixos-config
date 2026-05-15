@@ -2,7 +2,9 @@
 
 let
   tailnet = "tail1ec6c3.ts.net";
-  fqdn = "immich.${tailnet}";
+  tailnetFqdn = "immich.${tailnet}";
+  publicFqdn = "immich.youtalklikeafag.com";
+  tunnelId = "a427442e-27ac-49ab-84b9-6d9002ec4533";
   certDir = "/var/lib/tailscale-cert";
   dataDir = "/mnt/immich-data";
 in
@@ -65,7 +67,7 @@ in
     recommendedTlsSettings = true;
     recommendedOptimisation = true;
     recommendedGzipSettings = true;
-    virtualHosts.${fqdn} = {
+    virtualHosts.${tailnetFqdn} = {
       forceSSL = true;
       sslCertificate = "${certDir}/cert.pem";
       sslCertificateKey = "${certDir}/key.pem";
@@ -79,6 +81,30 @@ in
       locations."/" = {
         proxyPass = "http://127.0.0.1:2283";
         proxyWebsockets = true;
+      };
+    };
+  };
+
+  # Public access via Cloudflare Tunnel. The outbound cloudflared daemon
+  # holds a connection to Cloudflare's edge and forwards requests to
+  # immich on loopback; TLS terminates at the edge. The tailnet path
+  # (nginx + tailscale-cert above) stays in place as a fallback and is
+  # required for upload payloads >100 MB (Cloudflare Free's per-request
+  # limit).
+  #
+  # Credentials provisioned out-of-band at /etc/cloudflared/<uuid>.json
+  # (root:root 0600). The nixpkgs module uses DynamicUser + LoadCredential,
+  # so systemd reads the file as root before privilege drop. After the
+  # first deploy: `sudo mkdir -p /etc/cloudflared && sudo install -m 600
+  # -o root -g root <src> /etc/cloudflared/${tunnelId}.json` then restart
+  # the unit.
+  services.cloudflared = {
+    enable = true;
+    tunnels.${tunnelId} = {
+      credentialsFile = "/etc/cloudflared/${tunnelId}.json";
+      default = "http_status:404";
+      ingress = {
+        ${publicFqdn} = "http://127.0.0.1:2283";
       };
     };
   };
@@ -98,7 +124,7 @@ in
       ${pkgs.tailscale}/bin/tailscale cert \
         --cert-file ${certDir}/cert.pem \
         --key-file ${certDir}/key.pem \
-        ${fqdn}
+        ${tailnetFqdn}
       chown -R nginx:nginx ${certDir}
       chmod 0644 ${certDir}/cert.pem
       chmod 0600 ${certDir}/key.pem
