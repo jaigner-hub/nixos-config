@@ -50,7 +50,7 @@ First-time deploy requires a manual step because `colmena` needs `jeff` in `nix.
 
 ### Host-specific notes
 
-- `nas` — Jellyfin + Samba over a mergerfs union of `/mnt/hdd1` + `/mnt/hdd2` mounted at `/mnt/storage`. The `putio-sync` systemd timer fires every 15 minutes and reads secrets from `/etc/putio-sync.env` (not in the repo). Hostname is `nass` (intentional, not a typo of the directory name).
+- `nas` — Jellyfin + Samba over (eventually) a mergerfs union of `/mnt/hdd1` + `/mnt/hdd2` mounted at `/mnt/storage` (HDDs not yet attached; see the commented `fileSystems` block in `configuration.nix`). Also hosts `services.filebrowser` (public via cloudflared at `files.youtalklikeafag.com`), serves the Nextcloud and Immich data directories over NFSv4 to those hosts on the tailnet, runs the `putio-sync` systemd timer every 15 minutes (secrets in `/etc/putio-sync.env`), and is the origin for daily restic backups of Nextcloud, Immich, and Filebrowser state to Backblaze B2. Hostname is `nass` (intentional, not a typo of the directory name).
 - `dev` — Docker-enabled workstation with Python/Node/MariaDB-client toolchain. `jeff` is added to the `docker` group here.
 
 ## Conventions
