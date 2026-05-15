@@ -189,9 +189,12 @@ in
       if [ ! -f ${db} ]; then
         ${runuser} -u ${fbUser} -- ${fb} -d ${db} config init
       fi
-      if ! ${runuser} -u ${fbUser} -- ${fb} -d ${db} users update jeff --password "$pw" 2>/dev/null; then
+      # Scope is relative to settings.root (/mnt/storage), so "/" gives
+      # jeff the entire configured root. Setting scope to /mnt/storage
+      # would have filebrowser look under /mnt/storage/mnt/storage.
+      if ! ${runuser} -u ${fbUser} -- ${fb} -d ${db} users update jeff --password "$pw" --scope / 2>/dev/null; then
         ${runuser} -u ${fbUser} -- ${fb} -d ${db} users add jeff "$pw" --perm.admin
-        ${runuser} -u ${fbUser} -- ${fb} -d ${db} users update jeff --scope /mnt/storage
+        ${runuser} -u ${fbUser} -- ${fb} -d ${db} users update jeff --scope /
       fi
     '';
   in [ "+${seed}" ];
