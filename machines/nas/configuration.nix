@@ -95,27 +95,29 @@ in
 
   networking.firewall.interfaces.tailscale0.allowedTCPPorts = [ 2049 ];
 
-  # TODO: re-enable once the physical disks are attached. Until then,
-  # /mnt/storage is a plain directory on the root filesystem (created
-  # by the tmpfiles rule below) so Samba/NFS/restic don't choke on a
-  # missing path. Anything written here is TEMPORARY.
-  # fileSystems."/mnt/hdd1" = {
-  #   device = "/dev/disk/by-uuid/ca1567d9-3634-4e46-acd9-545d7525371b";
-  #   fsType = "ext4";
-  #   options = [ "nofail" "x-systemd.device-timeout=1" ];
-  # };
-  #
-  # fileSystems."/mnt/hdd2" = {
-  #   device = "/dev/disk/by-uuid/f15c866f-d200-4b12-866f-bd36c79c626b";
-  #   fsType = "ext4";
-  #   options = [ "nofail" "x-systemd.device-timeout=1" ];
-  # };
-  #
-  # fileSystems."/mnt/storage" = {
-  #   device = "/mnt/hdd1:/mnt/hdd2";
-  #   fsType = "fuse.mergerfs";
-  #   options = [ "nofail" "x-systemd.device-timeout=1" ];
-  # };
+  # Physical disks passed through from the Proxmox host as raw SCSI.
+  # Union-mounted at /mnt/storage via mergerfs so the 21.8 TB and 4.5 TB
+  # drives appear as one ~26 TB filesystem — the asymmetric sizes are
+  # why mergerfs over plain LVM/btrfs-raid: no per-disk size matching
+  # required, and a single disk loss only loses that disk's data.
+  # `nofail` keeps the host bootable if a drive disappears.
+  fileSystems."/mnt/hdd1" = {
+    device = "/dev/disk/by-uuid/ca1567d9-3634-4e46-acd9-545d7525371b";
+    fsType = "ext4";
+    options = [ "nofail" "x-systemd.device-timeout=10" ];
+  };
+
+  fileSystems."/mnt/hdd2" = {
+    device = "/dev/disk/by-uuid/f15c866f-d200-4b12-866f-bd36c79c626b";
+    fsType = "ext4";
+    options = [ "nofail" "x-systemd.device-timeout=10" ];
+  };
+
+  fileSystems."/mnt/storage" = {
+    device = "/mnt/hdd1:/mnt/hdd2";
+    fsType = "fuse.mergerfs";
+    options = [ "nofail" "x-systemd.device-timeout=10" ];
+  };
 
   systemd.tmpfiles.rules = [
     "d /mnt/storage 0755 root root -"
