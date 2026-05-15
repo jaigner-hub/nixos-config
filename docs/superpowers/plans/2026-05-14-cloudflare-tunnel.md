@@ -211,12 +211,13 @@ Expected: colmena builds, copies the closure, and switches. `cloudflared-tunnel-
 
 ```bash
 scp ~/.cloudflared/<VAULT_UUID>.json jeff@vaultwarden:/tmp/<VAULT_UUID>.json
-ssh jeff@vaultwarden 'sudo install -m 600 -o cloudflared -g cloudflared \
-  /tmp/<VAULT_UUID>.json /etc/cloudflared/<VAULT_UUID>.json && \
+ssh jeff@vaultwarden 'sudo mkdir -p /etc/cloudflared && \
+  sudo install -m 600 -o root -g root \
+    /tmp/<VAULT_UUID>.json /etc/cloudflared/<VAULT_UUID>.json && \
   rm /tmp/<VAULT_UUID>.json'
 ```
 
-Expected: no errors. The `cloudflared` user/group exist because the deploy in step 6 created them.
+Expected: no errors. The credentials file is owned by `root:root` mode `0600`. The upstream `services.cloudflared` module runs the unit with `DynamicUser=true` + `LoadCredential=`, so systemd reads the file as root before privilege drop. There is no `cloudflared` system user.
 
 - [ ] **Step 8: Restart the cloudflared unit**
 
@@ -348,8 +349,9 @@ Expected: succeeds; cloudflared unit fails awaiting credentials.
 
 ```bash
 scp ~/.cloudflared/<NEXTCLOUD_UUID>.json jeff@nextcloud:/tmp/<NEXTCLOUD_UUID>.json
-ssh jeff@nextcloud 'sudo install -m 600 -o cloudflared -g cloudflared \
-  /tmp/<NEXTCLOUD_UUID>.json /etc/cloudflared/<NEXTCLOUD_UUID>.json && \
+ssh jeff@nextcloud 'sudo mkdir -p /etc/cloudflared && \
+  sudo install -m 600 -o root -g root \
+    /tmp/<NEXTCLOUD_UUID>.json /etc/cloudflared/<NEXTCLOUD_UUID>.json && \
   rm /tmp/<NEXTCLOUD_UUID>.json'
 ```
 
@@ -461,8 +463,9 @@ Run: `scripts/deploy.sh immich`
 
 ```bash
 scp ~/.cloudflared/<IMMICH_UUID>.json jeff@immich:/tmp/<IMMICH_UUID>.json
-ssh jeff@immich 'sudo install -m 600 -o cloudflared -g cloudflared \
-  /tmp/<IMMICH_UUID>.json /etc/cloudflared/<IMMICH_UUID>.json && \
+ssh jeff@immich 'sudo mkdir -p /etc/cloudflared && \
+  sudo install -m 600 -o root -g root \
+    /tmp/<IMMICH_UUID>.json /etc/cloudflared/<IMMICH_UUID>.json && \
   rm /tmp/<IMMICH_UUID>.json'
 ```
 
@@ -595,8 +598,9 @@ Run: `scripts/deploy.sh paperless`
 
 ```bash
 scp ~/.cloudflared/<PAPERLESS_UUID>.json jeff@paperless:/tmp/<PAPERLESS_UUID>.json
-ssh jeff@paperless 'sudo install -m 600 -o cloudflared -g cloudflared \
-  /tmp/<PAPERLESS_UUID>.json /etc/cloudflared/<PAPERLESS_UUID>.json && \
+ssh jeff@paperless 'sudo mkdir -p /etc/cloudflared && \
+  sudo install -m 600 -o root -g root \
+    /tmp/<PAPERLESS_UUID>.json /etc/cloudflared/<PAPERLESS_UUID>.json && \
   rm /tmp/<PAPERLESS_UUID>.json'
 ```
 
@@ -644,7 +648,7 @@ Replace:
 With:
 ```markdown
 3. After it comes back up, `scripts/deploy.sh <host>` works going forward.
-4. If the host runs `services.cloudflared`: the first deploy will activate but the `cloudflared-tunnel-<uuid>` unit will fail until you `scp` the tunnel credentials JSON into `/etc/cloudflared/<uuid>.json` (mode `0600`, owner `cloudflared:cloudflared`) and `systemctl restart` the unit. See `docs/superpowers/plans/2026-05-14-cloudflare-tunnel.md` for the full bootstrap.
+4. If the host runs `services.cloudflared`: the first deploy will activate but the `cloudflared-tunnel-<uuid>` unit will fail until you `sudo mkdir -p /etc/cloudflared` and `scp` the tunnel credentials JSON into `/etc/cloudflared/<uuid>.json` (mode `0600`, owner `root:root` — the unit uses `DynamicUser=true` + `LoadCredential=`, so root reads the file before privilege drop), then `systemctl restart` the unit. See `docs/superpowers/plans/2026-05-14-cloudflare-tunnel.md` for the full bootstrap.
 ```
 
 - [ ] **Step 2: Commit**
@@ -666,7 +670,7 @@ metadata:
   type: project
 ---
 
-Hosts with `services.cloudflared` need the tunnel credentials JSON installed at `/etc/cloudflared/<uuid>.json` (mode `0600`, owner `cloudflared:cloudflared`) before the `cloudflared-tunnel-<uuid>` unit will start. The user is created during the deploy, so the order is: deploy → scp creds → chown → `systemctl restart`.
+Hosts with `services.cloudflared` need the tunnel credentials JSON installed at `/etc/cloudflared/<uuid>.json` (mode `0600`, owner `root:root`) before the `cloudflared-tunnel-<uuid>` unit will start. The directory needs to be `mkdir`'d explicitly — the nixpkgs module doesn't create it. The unit uses `DynamicUser=true` + `LoadCredential=`, so systemd reads the file as root before dropping privileges. Order: deploy → `mkdir /etc/cloudflared` → scp creds → `install -m 600 -o root -g root` → `systemctl restart`.
 
 **Why:** Same shape as the existing tailscale-cert gotcha. The credentials file is sensitive and lives outside the repo. The systemd unit fails closed on first deploy, which is the desired safe default.
 
