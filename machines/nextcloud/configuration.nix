@@ -57,6 +57,15 @@ in
         publicFqdn
       ];
       default_phone_region = "US";
+
+      # Nextcloud's upstream is plain HTTP on loopback; TLS terminates at
+      # the Cloudflare edge. Without these overrides Nextcloud detects
+      # `http` from the local request and emits http:// URLs in responses,
+      # which trips the browser client's "server URL doesn't start with
+      # HTTPS" check during login.
+      overwriteprotocol = "https";
+      overwritehost = publicFqdn;
+      "overwrite.cli.url" = "https://${publicFqdn}";
     };
   };
 
