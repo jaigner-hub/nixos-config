@@ -66,6 +66,13 @@ in
       overwriteprotocol = "https";
       overwritehost = publicFqdn;
       "overwrite.cli.url" = "https://${publicFqdn}";
+
+      # cloudflared connects from loopback, so without this Nextcloud sees
+      # every request as coming from 127.0.0.1 and the brute-force throttle
+      # bans that single "IP" — locking everyone out. Trusting the local
+      # proxy makes Nextcloud honor the X-Forwarded-For header cloudflared
+      # populates with the real client IP.
+      trusted_proxies = [ "127.0.0.1" "::1" ];
     };
   };
 
