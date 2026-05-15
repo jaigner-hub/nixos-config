@@ -6,7 +6,8 @@ let
   # serve gatus at https://monitor.<tailnet>/ rather than a custom subdomain.
   fqdn = "monitor.${tailnet}";
   certDir = "/var/lib/tailscale-cert";
-  # Hosts to scrape node_exporter on. Names resolve over Tailscale MagicDNS.
+  # Hosts to scrape node_exporter on. NixOS hosts resolve over Tailscale MagicDNS;
+  # the Proxmox hypervisor isn't on the tailnet, so it's reached by LAN IP.
   scrapeTargets = [
     "monitor:9100"
     "nass:9100"
@@ -16,6 +17,7 @@ let
     "adguard:9100"
     "adguard2:9100"
     "paperless:9100"
+    "10.0.0.55:9100"
   ];
   b2Bucket = "Backup-jaigner-homelab";
   b2Endpoint = "s3.us-east-005.backblazeb2.com";
