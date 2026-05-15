@@ -2,7 +2,9 @@
 
 let
   tailnet = "tail1ec6c3.ts.net";
-  fqdn = "paperless.${tailnet}";
+  tailnetFqdn = "paperless.${tailnet}";
+  publicFqdn = "paperless.youtalklikeafag.com";
+  tunnelId = "dc41e600-a029-4bee-88a7-f58a4ac3b031";
   certDir = "/var/lib/tailscale-cert";
   b2Bucket = "Backup-jaigner-homelab";
   b2Endpoint = "s3.us-east-005.backblazeb2.com";
@@ -34,10 +36,11 @@ in
     passwordFile = "/etc/paperless-admin-pass";
 
     settings = {
-      PAPERLESS_URL = "https://${fqdn}";
+      PAPERLESS_URL = "https://${publicFqdn}";
       PAPERLESS_OCR_LANGUAGE = "eng";
       PAPERLESS_TIME_ZONE = "America/Chicago";
       # Trust the reverse proxy; without this, CSRF rejects uploads.
+      # Both nginx (tailnet) and cloudflared (public) connect from loopback.
       PAPERLESS_TRUSTED_PROXIES = "127.0.0.1";
     };
   };
@@ -48,7 +51,7 @@ in
     recommendedTlsSettings = true;
     recommendedOptimisation = true;
     recommendedGzipSettings = true;
-    virtualHosts.${fqdn} = {
+    virtualHosts.${tailnetFqdn} = {
       forceSSL = true;
       sslCertificate = "${certDir}/cert.pem";
       sslCertificateKey = "${certDir}/key.pem";
@@ -61,6 +64,29 @@ in
       locations."/" = {
         proxyPass = "http://127.0.0.1:28981";
         proxyWebsockets = true;
+      };
+    };
+  };
+
+  # Public access via Cloudflare Tunnel. The outbound cloudflared daemon
+  # holds a connection to Cloudflare's edge and forwards requests to
+  # paperless on loopback; TLS terminates at the edge. The tailnet path
+  # (nginx + tailscale-cert above) stays in place as a fallback and is
+  # required for uploads >100 MB (Cloudflare Free's per-request limit).
+  #
+  # Credentials provisioned out-of-band at /etc/cloudflared/<uuid>.json
+  # (root:root 0600). The nixpkgs module uses DynamicUser + LoadCredential,
+  # so systemd reads the file as root before privilege drop. After the
+  # first deploy: `sudo mkdir -p /etc/cloudflared && sudo install -m 600
+  # -o root -g root <src> /etc/cloudflared/${tunnelId}.json` then restart
+  # the unit.
+  services.cloudflared = {
+    enable = true;
+    tunnels.${tunnelId} = {
+      credentialsFile = "/etc/cloudflared/${tunnelId}.json";
+      default = "http_status:404";
+      ingress = {
+        ${publicFqdn} = "http://127.0.0.1:28981";
       };
     };
   };
@@ -80,7 +106,7 @@ in
       ${pkgs.tailscale}/bin/tailscale cert \
         --cert-file ${certDir}/cert.pem \
         --key-file ${certDir}/key.pem \
-        ${fqdn}
+        ${tailnetFqdn}
       chown -R nginx:nginx ${certDir}
       chmod 0644 ${certDir}/cert.pem
       chmod 0600 ${certDir}/key.pem
