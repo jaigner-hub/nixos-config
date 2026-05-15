@@ -2,7 +2,9 @@
 
 let
   tailnet = "tail1ec6c3.ts.net";
-  fqdn = "vaultwarden.${tailnet}";
+  tailnetFqdn = "vaultwarden.${tailnet}";
+  publicFqdn = "vaultwarden.youtalklikeafag.com";
+  tunnelId = "e6445ae8-f61a-43f0-a860-af3b55cd8122";
   certDir = "/var/lib/tailscale-cert";
   b2Bucket = "Backup-jaigner-homelab";
   b2Endpoint = "s3.us-east-005.backblazeb2.com";
@@ -24,12 +26,23 @@ in
     backupDir = "/var/backup/vaultwarden";
     environmentFile = "/etc/vaultwarden.env";
     config = {
-      DOMAIN = "https://${fqdn}";
+      DOMAIN = "https://${publicFqdn}";
       ROCKET_ADDRESS = "127.0.0.1";
       ROCKET_PORT = 8222;
       SIGNUPS_ALLOWED = false;
       INVITATIONS_ALLOWED = true;
       WEB_VAULT_ENABLED = true;
+    };
+  };
+
+  services.cloudflared = {
+    enable = true;
+    tunnels.${tunnelId} = {
+      credentialsFile = "/etc/cloudflared/${tunnelId}.json";
+      default = "http_status:404";
+      ingress = {
+        ${publicFqdn} = "http://127.0.0.1:8222";
+      };
     };
   };
 
@@ -39,7 +52,7 @@ in
     recommendedTlsSettings = true;
     recommendedOptimisation = true;
     recommendedGzipSettings = true;
-    virtualHosts.${fqdn} = {
+    virtualHosts.${tailnetFqdn} = {
       forceSSL = true;
       sslCertificate = "${certDir}/cert.pem";
       sslCertificateKey = "${certDir}/key.pem";
@@ -97,7 +110,7 @@ in
       ${pkgs.tailscale}/bin/tailscale cert \
         --cert-file ${certDir}/cert.pem \
         --key-file ${certDir}/key.pem \
-        ${fqdn}
+        ${tailnetFqdn}
       chown -R nginx:nginx ${certDir}
       chmod 0644 ${certDir}/cert.pem
       chmod 0600 ${certDir}/key.pem
