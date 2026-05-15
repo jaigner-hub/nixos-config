@@ -80,11 +80,15 @@ in
     description = "Immich data owner (NFS UID/GID parity)";
   };
 
+  # `fsid=` is required because /mnt/storage is mergerfs (FUSE), which
+  # doesn't expose a stable device ID for the kernel NFS server to use
+  # when generating filehandles. Numbers are arbitrary but must be unique
+  # and stable across reboots — never reuse a number for a different path.
   services.nfs.server = {
     enable = true;
     exports = ''
-      /mnt/storage/nextcloud 100.64.0.0/10(rw,sync,no_subtree_check,no_root_squash)
-      /mnt/storage/immich    100.64.0.0/10(rw,sync,no_subtree_check,no_root_squash)
+      /mnt/storage/nextcloud 100.64.0.0/10(rw,sync,no_subtree_check,no_root_squash,fsid=1)
+      /mnt/storage/immich    100.64.0.0/10(rw,sync,no_subtree_check,no_root_squash,fsid=2)
     '';
   };
 
