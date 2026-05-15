@@ -36,6 +36,7 @@ First-time deploy requires a manual step because `colmena` needs `jeff` in `nix.
 1. From the host's console (or SSH): `nixos-generate-config --show-hardware-config` and replace `machines/<host>/hardware-configuration.nix` with that output (the committed placeholder uses `by-label` paths that won't exist on cloned VMs).
 2. `sudo nixos-rebuild boot --flake github:jaigner-hub/nixos-config#<host>` then reboot. Using `boot` (not `switch`) avoids live-restarting `boot.mount`, which can hang when the disk layout changes.
 3. After it comes back up, `scripts/deploy.sh <host>` works going forward.
+4. If the host runs `services.cloudflared`: the first deploy will activate but the `cloudflared-tunnel-<uuid>` unit will fail until you `sudo mkdir -p /etc/cloudflared` and `scp` the tunnel credentials JSON into `/etc/cloudflared/<uuid>.json` (mode `0600`, owner `root:root` — the unit uses `DynamicUser=true` + `LoadCredential=`, so root reads the file before privilege drop), then `systemctl restart` the unit. See `docs/superpowers/plans/2026-05-14-cloudflare-tunnel.md` for the full bootstrap.
 
 `putio-sync.py` (run on `nas` only) supports `--dry-run` and `--seed` flags; it reads its token from `/etc/putio-sync.env` (via the systemd unit), `PUTIO_TOKEN`, or `~/.config/putio-sync/config.json`.
 
