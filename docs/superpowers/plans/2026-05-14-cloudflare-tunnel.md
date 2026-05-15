@@ -373,8 +373,8 @@ Open in a browser. The Nextcloud login page should render. If you see `Access th
 
 - [ ] **Step 11: Verify tailnet path**
 
-Run: `curl -sI https://nextcloud.tail1ec6c3.ts.net`
-Expected: `HTTP/2 302`. Tailnet access still works.
+Run: `curl -sI http://nextcloud.tail1ec6c3.ts.net`
+Expected: `HTTP/1.1 302`. Tailnet access still works. (Note: nextcloud is the one host that serves plain HTTP on port 80 over tailnet — `services.nextcloud.https = false`, no nginx + tailscale-cert. Don't use `https://` here.)
 
 - [ ] **Step 12: Test file upload from a client**
 
