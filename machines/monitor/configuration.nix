@@ -69,7 +69,11 @@ in
       server = {
         http_addr = "0.0.0.0";
         http_port = 3000;
-        root_url = "http://monitor:3000/";
+        # Fully-qualified tailnet hostname here so Grafana's OAuth
+        # redirect_uri (root_url + /login/generic_oauth) matches the URL
+        # the browser is actually on. With the short alias `monitor:3000`,
+        # Pocket-ID would reject the redirect_uri.
+        root_url = "http://monitor.${tailnet}:3000/";
       };
       analytics.reporting_enabled = false;
 
@@ -78,6 +82,24 @@ in
       #   sudo install -m 600 -o grafana -g grafana /dev/stdin /etc/grafana-secret-key \
       #     <<<"$(head -c 64 /dev/urandom | base64)"
       security.secret_key = "$__file{/etc/grafana-secret-key}";
+
+      # SSO via Pocket-ID over the tailnet. CLIENT_ID and CLIENT_SECRET
+      # land via /etc/grafana-oidc.env (loaded as EnvironmentFile=) so
+      # they stay out of the Nix store. Grafana's env-var override syntax
+      # replaces any value of the corresponding INI key.
+      "auth.generic_oauth" = {
+        enabled = true;
+        name = "Pocket-ID";
+        client_id = "set-by-environment-file";
+        client_secret = "set-by-environment-file";
+        scopes = "openid profile email";
+        auth_url = "https://auth.${tailnet}/authorize";
+        token_url = "https://auth.${tailnet}/api/oidc/token";
+        api_url = "https://auth.${tailnet}/api/oidc/userinfo";
+        use_pkce = true;
+        allow_sign_up = true;
+        auto_login = false;
+      };
     };
 
     provision = {
@@ -93,6 +115,12 @@ in
       ];
     };
   };
+
+  # Grafana picks up GF_AUTH_GENERIC_OAUTH_CLIENT_ID/SECRET from this file
+  # at service start, overriding the placeholder values in
+  # services.grafana.settings. Provisioned out-of-band — see
+  # /etc/grafana-oidc.env (mode 0600 grafana:grafana).
+  systemd.services.grafana.serviceConfig.EnvironmentFile = "/etc/grafana-oidc.env";
 
   # Uptime monitoring for fleet services. Web UI at https://${fqdn}/,
   # Prometheus metrics scraped from /metrics (job_name = "gatus" above).
