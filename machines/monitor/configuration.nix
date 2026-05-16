@@ -105,6 +105,22 @@ in
       };
       metrics = true;
 
+      # Alert delivery via ntfy. The token is loaded from /etc/gatus.env at
+      # service start (see systemd.services.gatus.serviceConfig.EnvironmentFile
+      # below). $NTFY_TOKEN is expanded by Gatus at runtime, not by Nix.
+      alerting = {
+        ntfy = {
+          url = "https://auth.${tailnet}";
+          topic = "homelab-warn";
+          token = "$NTFY_TOKEN";
+          default-alert = {
+            failure-threshold = 3;
+            success-threshold = 2;
+            send-on-resolved = true;
+          };
+        };
+      };
+
       endpoints = [
         {
           name = "adguard-ui";
@@ -112,6 +128,7 @@ in
           url = "https://adguard.${tailnet}/";
           interval = "1m";
           conditions = [ "[STATUS] == 200" "[CERTIFICATE_EXPIRATION] > 168h" ];
+          alerts = [ { type = "ntfy"; } ];
         }
         {
           name = "adguard-dns";
@@ -119,6 +136,7 @@ in
           url = "tcp://adguard:53";
           interval = "1m";
           conditions = [ "[CONNECTED] == true" ];
+          alerts = [ { type = "ntfy"; } ];
         }
         {
           name = "adguard2-ui";
@@ -126,6 +144,7 @@ in
           url = "https://adguard2.${tailnet}/";
           interval = "1m";
           conditions = [ "[STATUS] == 200" "[CERTIFICATE_EXPIRATION] > 168h" ];
+          alerts = [ { type = "ntfy"; } ];
         }
         {
           name = "adguard2-dns";
@@ -133,6 +152,7 @@ in
           url = "tcp://adguard2:53";
           interval = "1m";
           conditions = [ "[CONNECTED] == true" ];
+          alerts = [ { type = "ntfy"; } ];
         }
         {
           name = "vaultwarden";
@@ -140,6 +160,7 @@ in
           url = "https://vaultwarden.${tailnet}/alive";
           interval = "1m";
           conditions = [ "[STATUS] == 200" "[CERTIFICATE_EXPIRATION] > 168h" ];
+          alerts = [ { type = "ntfy"; } ];
         }
         {
           name = "nextcloud";
@@ -147,6 +168,7 @@ in
           url = "http://nextcloud/status.php";
           interval = "1m";
           conditions = [ "[STATUS] == 200" "[BODY].installed == true" ];
+          alerts = [ { type = "ntfy"; } ];
         }
         {
           name = "paperless";
@@ -154,6 +176,7 @@ in
           url = "https://paperless.${tailnet}/";
           interval = "1m";
           conditions = [ "[STATUS] == 200" "[CERTIFICATE_EXPIRATION] > 168h" ];
+          alerts = [ { type = "ntfy"; } ];
         }
         {
           name = "jellyfin";
@@ -161,6 +184,7 @@ in
           url = "http://nass:8096/health";
           interval = "1m";
           conditions = [ "[STATUS] == 200" ];
+          alerts = [ { type = "ntfy"; } ];
         }
         {
           name = "grafana";
@@ -168,6 +192,7 @@ in
           url = "http://localhost:3000/api/health";
           interval = "1m";
           conditions = [ "[STATUS] == 200" "[BODY].database == ok" ];
+          alerts = [ { type = "ntfy"; } ];
         }
         {
           name = "prometheus";
@@ -175,10 +200,24 @@ in
           url = "http://localhost:9090/-/healthy";
           interval = "1m";
           conditions = [ "[STATUS] == 200" ];
+          alerts = [ { type = "ntfy"; } ];
+        }
+        {
+          name = "ntfy";
+          group = "internal";
+          url = "https://auth.${tailnet}/v1/health";
+          interval = "1m";
+          conditions = [ "[STATUS] == 200" "[BODY].healthy == true" ];
+          alerts = [ { type = "ntfy"; } ];
         }
       ];
     };
   };
+
+  # The nixpkgs services.gatus module doesn't expose environmentFile, so set
+  # it via a systemd unit override. /etc/gatus.env holds NTFY_TOKEN, mode 0600
+  # root:root, provisioned out-of-band.
+  systemd.services.gatus.serviceConfig.EnvironmentFile = "/etc/gatus.env";
 
   services.nginx = {
     enable = true;
