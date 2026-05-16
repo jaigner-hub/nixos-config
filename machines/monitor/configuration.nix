@@ -1,4 +1,4 @@
-{ config, pkgs, claude-code-nix, ... }:
+{ config, pkgs, claude-code-nix, mkNtfyOnFailure, ... }:
 
 let
   tailnet = "tail1ec6c3.ts.net";
@@ -255,6 +255,24 @@ in
       "--keep-monthly 12"
     ];
   };
+
+  # ntfy failure notifications. Grafana backup is critical (config + dashboards
+  # are the only state worth keeping here — metrics are regenerable). tailscale-cert
+  # is warn-tier: a renewal flake won't break anything until the cert is within a
+  # week of expiry, which gives plenty of recovery time.
+  systemd.services."ntfy-failed-restic-grafana" =
+    mkNtfyOnFailure {
+      topic = "homelab-critical";
+      title = "monitor: restic backup (grafana) failed";
+    } "restic-backups-grafana.service";
+  systemd.services.restic-backups-grafana.onFailure = [ "ntfy-failed-restic-grafana.service" ];
+
+  systemd.services."ntfy-failed-tailscale-cert" =
+    mkNtfyOnFailure {
+      topic = "homelab-warn";
+      title = "monitor: tailscale-cert failed";
+    } "tailscale-cert.service";
+  systemd.services.tailscale-cert.onFailure = [ "ntfy-failed-tailscale-cert.service" ];
 
   system.stateVersion = "25.11";
 }
