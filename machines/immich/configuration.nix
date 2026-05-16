@@ -1,4 +1,4 @@
-{ config, pkgs, claude-code-nix, ... }:
+{ config, pkgs, claude-code-nix, mkNtfyOnFailure, ... }:
 
 let
   tailnet = "tail1ec6c3.ts.net";
@@ -173,6 +173,23 @@ in
       RandomizedDelaySec = "30m";
     };
   };
+
+  # ntfy failure notifications. cloudflared is warn-tier (tailnet path stays
+  # up). tailscale-cert is warn-tier (cert is valid for ~3mo, renewals are
+  # weekly — plenty of recovery time).
+  systemd.services."ntfy-failed-cloudflared" =
+    mkNtfyOnFailure {
+      topic = "homelab-warn";
+      title = "immich: cloudflared tunnel failed";
+    } "cloudflared-tunnel-${tunnelId}.service";
+  systemd.services."cloudflared-tunnel-${tunnelId}".onFailure = [ "ntfy-failed-cloudflared.service" ];
+
+  systemd.services."ntfy-failed-tailscale-cert" =
+    mkNtfyOnFailure {
+      topic = "homelab-warn";
+      title = "immich: tailscale-cert failed";
+    } "tailscale-cert.service";
+  systemd.services.tailscale-cert.onFailure = [ "ntfy-failed-tailscale-cert.service" ];
 
   system.stateVersion = "25.11";
 }

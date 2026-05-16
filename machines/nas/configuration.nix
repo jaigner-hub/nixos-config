@@ -348,5 +348,14 @@ in
     } "restic-backups-filebrowser.service";
   systemd.services.restic-backups-filebrowser.onFailure = [ "ntfy-failed-restic-filebrowser.service" ];
 
+  # cloudflared tunnel failure is warn-tier: the public filebrowser path goes
+  # down but LAN Samba/Jellyfin/NFS keep working.
+  systemd.services."ntfy-failed-cloudflared" =
+    mkNtfyOnFailure {
+      topic = "homelab-warn";
+      title = "nas: cloudflared tunnel failed";
+    } "cloudflared-tunnel-${tunnelId}.service";
+  systemd.services."cloudflared-tunnel-${tunnelId}".onFailure = [ "ntfy-failed-cloudflared.service" ];
+
   system.stateVersion = "25.11";
 }
