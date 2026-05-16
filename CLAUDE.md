@@ -52,6 +52,7 @@ First-time deploy requires a manual step because `colmena` needs `jeff` in `nix.
 
 - `nas` — Jellyfin + Samba over (eventually) a mergerfs union of `/mnt/hdd1` + `/mnt/hdd2` mounted at `/mnt/storage` (HDDs not yet attached; see the commented `fileSystems` block in `configuration.nix`). Also hosts `services.filebrowser` (public via cloudflared at `files.youtalklikeafag.com`), serves the Nextcloud and Immich data directories over NFSv4 to those hosts on the tailnet, runs the `putio-sync` systemd timer every 15 minutes (secrets in `/etc/putio-sync.env`), and is the origin for daily restic backups of Nextcloud, Immich, and Filebrowser state to Backblaze B2. Hostname is `nass` (intentional, not a typo of the directory name).
 - `dev` — Docker-enabled workstation with Python/Node/MariaDB-client toolchain. `jeff` is added to the `docker` group here.
+- `auth` — Self-hosted ntfy (`https://auth.tail1ec6c3.ts.net`) behind nginx + tailscale-cert. Receives systemd `OnFailure=` notifications from every host via the helper in `common/ntfy-notify.nix` (which all hosts get through `common/base.nix`), plus uptime alerts from Gatus on `monitor`. Three topics — `homelab-critical`, `homelab-warn`, `homelab-info` — with severity set per-subscription on the phone. Tokens live in `/var/lib/ntfy-sh/user.db` (managed by ntfy); writer-token copies at `/etc/ntfy-token` on every host and `/etc/gatus.env` on monitor are provisioned out-of-band. Also intended as the future SSO host.
 
 ## Conventions
 
