@@ -174,6 +174,42 @@ in
     };
   };
 
+  # Daily refresh of the XMLTV EPG that Jellyfin's Live TV reads from.
+  # Originally a Windows scheduled task; ported here so it lives with the
+  # rest of the fleet. Atomic mv keeps Jellyfin from reading a half-written
+  # file mid-download.
+  systemd.services.jellyfin-epg-update = {
+    description = "Refresh XMLTV EPG for Jellyfin Live TV";
+    serviceConfig = {
+      Type = "oneshot";
+      User = "jellyfin";
+      Group = "jellyfin";
+    };
+    path = [ pkgs.curl pkgs.gzip pkgs.coreutils ];
+    script = ''
+      set -euo pipefail
+      epgDir=/mnt/storage/chill.institute/epg
+      mkdir -p "$epgDir"
+      # Stream the gzipped feed through gunzip into a sibling temp file, then
+      # atomic-mv into place so Jellyfin never sees a half-written XML. set
+      # -o pipefail makes curl failures (e.g. upstream 5xx) propagate.
+      curl -fsSL --max-time 600 \
+        https://epgshare01.online/epgshare01/epg_ripper_US_LOCALS1.xml.gz \
+        | gzip -d > "$epgDir/epg_ripper_US_LOCALS1.xml.new"
+      mv -f "$epgDir/epg_ripper_US_LOCALS1.xml.new" \
+            "$epgDir/epg_ripper_US_LOCALS1.xml"
+    '';
+  };
+
+  systemd.timers.jellyfin-epg-update = {
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnCalendar = "*-*-* 04:00:00";
+      Persistent = true;
+      RandomizedDelaySec = "30m";
+    };
+  };
+
   # Filebrowser: lightweight web UI for browsing /mnt/storage and
   # generating share links for external recipients. Listens on
   # loopback only; cloudflared (added below) handles public ingress.
@@ -336,6 +372,16 @@ in
       title = "nas: putio-sync failed";
     } "putio-sync.service";
   systemd.services.putio-sync.onFailure = [ "ntfy-failed-putio-sync.service" ];
+
+  # EPG update is warn-tier: a missed run just means Jellyfin shows yesterday's
+  # guide for an extra day. epgshare01 is a free public mirror with no SLA, so
+  # transient 404/500s are expected.
+  systemd.services."ntfy-failed-jellyfin-epg-update" =
+    mkNtfyOnFailure {
+      topic = "homelab-warn";
+      title = "nas: jellyfin EPG refresh failed";
+    } "jellyfin-epg-update.service";
+  systemd.services.jellyfin-epg-update.onFailure = [ "ntfy-failed-jellyfin-epg-update.service" ];
 
   systemd.services."ntfy-failed-restic-nextcloud" =
     mkNtfyOnFailure {
