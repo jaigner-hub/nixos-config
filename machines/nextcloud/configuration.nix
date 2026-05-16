@@ -1,4 +1,4 @@
-{ config, pkgs, claude-code-nix, ... }:
+{ config, pkgs, claude-code-nix, mkNtfyOnFailure, ... }:
 
 let
   publicFqdn = "nextcloud.youtalklikeafag.com";
@@ -147,6 +147,15 @@ in
       RandomizedDelaySec = "30m";
     };
   };
+
+  # ntfy failure notification. The DB dump feeds nas's restic-backups-nextcloud
+  # at 04:00 — if this fails, the next-morning backup snapshot is missing the DB.
+  systemd.services."ntfy-failed-nextcloud-db-backup" =
+    mkNtfyOnFailure {
+      topic = "homelab-critical";
+      title = "nextcloud: db-backup failed";
+    } "nextcloud-db-backup.service";
+  systemd.services.nextcloud-db-backup.onFailure = [ "ntfy-failed-nextcloud-db-backup.service" ];
 
   system.stateVersion = "25.11";
 }
