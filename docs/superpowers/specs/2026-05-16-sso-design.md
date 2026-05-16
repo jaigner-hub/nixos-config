@@ -16,13 +16,29 @@ passwords as each integration lands.
 
 ## Approach
 
-Stand up [Pocket-ID](https://pocket-id.org) on the existing `auth` host
-alongside ntfy, exposed only on the tailnet via the same `nginx +
-tailscale-cert` pattern. Apps with native OIDC support redirect to Pocket-ID
-for authentication; Pocket-ID is the sole place WebAuthn passkeys are
-registered. Apps without native OIDC support (Vaultwarden user-side, AdGuard,
-Filebrowser, Gatus) stay on their existing auth — not every login has to flow
-through SSO for SSO to be useful.
+Stand up [Pocket-ID](https://pocket-id.org) on the existing `auth` host at
+`https://auth.tail1ec6c3.ts.net`, exposed only on the tailnet via the same
+`nginx + tailscale-cert` pattern. Apps with native OIDC support redirect to
+Pocket-ID for authentication; Pocket-ID is the sole place WebAuthn passkeys
+are registered. Apps without native OIDC support (Vaultwarden user-side,
+AdGuard, Filebrowser, Gatus) stay on their existing auth — not every login
+has to flow through SSO for SSO to be useful.
+
+### Tailscale cert constraint and the ntfy move
+
+Discovered during the first deploy: Tailscale's `tailscale cert` command
+only issues a cert for the machine's own MagicDNS name. There is no support
+for additional hostnames or aliases on a single node. Pocket-ID requires
+the root of an HTTPS-capable FQDN (no path-prefix mode), and ntfy is the
+same — so they cannot share `auth.tail1ec6c3.ts.net`, and the originally
+planned `id.tail1ec6c3.ts.net` cannot be issued.
+
+Resolution: ntfy moves off `auth` to `nass.tail1ec6c3.ts.net` (the NAS,
+which had no competing nginx vhost), and Pocket-ID takes over the `auth`
+FQDN. Migration touches `common/ntfy-notify.nix` (URL change) and is
+otherwise transparent to consumers — every fleet host picks up the new URL
+on its next rebuild. The ntfy `user.db` rsyncs over to nass to preserve
+writer tokens.
 
 ### Why Pocket-ID over Authelia / Keycloak / Authentik
 
@@ -49,7 +65,7 @@ add an attack surface (the IdP is the highest-value target in a homelab) and
 no capability we need.
 
 A consequence: the WebAuthn relying-party ID gets bound to
-`id.tail1ec6c3.ts.net`. Passkeys are scoped to that exact origin — if we
+`auth.tail1ec6c3.ts.net`. Passkeys are scoped to that exact origin — if we
 later move Pocket-ID to a public domain, every registered passkey is
 invalidated and has to be re-registered. v1 ships tailnet-only and accepts
 that future re-registration cost.
@@ -66,14 +82,31 @@ the cost of adding it is the same regardless. A second VM would buy nothing.
 ### New on `auth`
 
 - `services.pocket-id` enabled, listening on `127.0.0.1:3000`.
-- Second nginx vhost for `id.tail1ec6c3.ts.net`, terminating TLS via a
-  per-FQDN tailscale cert.
-- `tailscale-cert.service` refactored to issue certs for both FQDNs in one
-  script. Certs land at `${certDir}/<fqdn>/{cert,key}.pem` so each vhost
-  references its own files.
+- Single nginx vhost for `auth.tail1ec6c3.ts.net`, replacing the prior
+  ntfy vhost on the same FQDN. Cert continues to be issued via
+  `tailscale-cert` at `/var/lib/tailscale-cert/{cert,key}.pem` — single
+  FQDN, no refactor needed.
+- `services.ntfy-sh` removed from auth.
 - `OnFailure=` hook for `pocket-id.service` via `mkNtfyOnFailure`.
 - Restic backup unit for `/var/lib/pocket-id/` to the existing Backblaze B2
   bucket, under a new `pocket-id/` subpath. (Auth's first restic origin.)
+
+### New on `nass` (ntfy migration)
+
+- `services.ntfy-sh` enabled, listening on `127.0.0.1:2586`.
+- New nginx vhost for `nass.tail1ec6c3.ts.net` (nass's first tailnet
+  HTTPS vhost) using the standard `tailscale-cert` pattern.
+- Restic backup unit for `/var/lib/ntfy-sh/` to B2 under `ntfy/`.
+- `OnFailure=` hooks for `ntfy-sh.service`, `tailscale-cert.service`,
+  and `restic-backups-ntfy.service`.
+
+### Updated elsewhere
+
+- `common/ntfy-notify.nix`: `ntfyUrl` switched from
+  `https://auth.tail1ec6c3.ts.net` to `https://nass.tail1ec6c3.ts.net`. Every
+  fleet host picks this up on next rebuild.
+- `monitor` Gatus config: ntfy alerting URL and the internal ntfy health
+  endpoint repointed to `nass.tail1ec6c3.ts.net`.
 
 ### Per-app wiring
 
@@ -114,7 +147,7 @@ a week without surprises.
 services.pocket-id = {
   enable = true;
   settings = {
-    APP_URL = "https://id.${tailnet}";
+    APP_URL = "https://auth.${tailnet}";
     TRUST_PROXY = true;
     PORT = 3000;
     ANALYTICS_DISABLED = true;
@@ -134,66 +167,21 @@ through systemd `LoadCredential`.
 
 SQLite store at `/var/lib/pocket-id/` (the module's default `dataDir`).
 
-### tailscale-cert refactor on `auth`
+### tailscale-cert on `auth` and `nass`
 
-The current `auth` config issues a single cert for `auth.tail1ec6c3.ts.net`
-at `/var/lib/tailscale-cert/{cert,key}.pem`. We now need two certs. Refactor
-to iterate over a list of FQDNs and write each cert under a per-FQDN subdir:
+Each host runs the standard single-FQDN `tailscale-cert` pattern (see the
+existing pattern on `monitor`): one oneshot systemd unit writes
+`/var/lib/tailscale-cert/{cert,key}.pem` for the host's MagicDNS name, a
+weekly timer renews. nginx references those two paths.
 
-```nix
-let
-  tailnet = "tail1ec6c3.ts.net";
-  certFqdns = [ "auth.${tailnet}" "id.${tailnet}" ];
-  certDir = "/var/lib/tailscale-cert";
-in {
-  systemd.services.tailscale-cert = {
-    description = "Issue/renew tailscale-issued TLS certs for ${concatStringsSep ", " certFqdns}";
-    after = [ "tailscaled.service" "network-online.target" ];
-    wants = [ "network-online.target" ];
-    serviceConfig.Type = "oneshot";
-    script = ''
-      set -euo pipefail
-      for fqdn in ${concatStringsSep " " certFqdns}; do
-        mkdir -p ${certDir}/$fqdn
-        ${pkgs.tailscale}/bin/tailscale cert \
-          --cert-file ${certDir}/$fqdn/cert.pem \
-          --key-file ${certDir}/$fqdn/key.pem \
-          $fqdn
-      done
-      chown -R nginx:nginx ${certDir}
-      find ${certDir} -name cert.pem -exec chmod 0644 {} +
-      find ${certDir} -name key.pem -exec chmod 0600 {} +
-      ${pkgs.systemd}/bin/systemctl reload-or-restart nginx.service || true
-    '';
-  };
-}
-```
+`auth`'s existing tailscale-cert unit needs no changes — it already issues
+for `auth.tail1ec6c3.ts.net`, which is now the Pocket-ID hostname.
 
-Each nginx vhost references its own cert path:
-
-```nix
-virtualHosts."auth.${tailnet}" = {
-  sslCertificate = "${certDir}/auth.${tailnet}/cert.pem";
-  sslCertificateKey = "${certDir}/auth.${tailnet}/key.pem";
-  # ...
-};
-virtualHosts."id.${tailnet}" = {
-  sslCertificate = "${certDir}/id.${tailnet}/cert.pem";
-  sslCertificateKey = "${certDir}/id.${tailnet}/key.pem";
-  forceSSL = true;
-  locations."/" = {
-    proxyPass = "http://127.0.0.1:3000";
-    proxyWebsockets = true;
-  };
-};
-```
-
-**Migration note:** the existing single-FQDN cert at
-`${certDir}/{cert,key}.pem` becomes unused. The refactored unit creates the
-new per-FQDN subdirs on first run, so `nginx` will fail to reload until
-`systemctl start tailscale-cert` lands the new files. Same gotcha as the
-first-deploy bootstrap of `auth` originally — `project_tailscale_cert.md`
-already covers it.
+`nass` gets the pattern added from scratch (it had no tailnet HTTPS vhost
+before). Same first-deploy gotcha as every other host using this pattern
+(`project_tailscale_cert.md`): the cert files only exist after a manual
+`sudo systemctl start tailscale-cert` on first deploy; nginx will fail to
+start until then.
 
 ### Failure handling
 
@@ -213,14 +201,18 @@ makes sense as the eventual default.
 ### Backup
 
 `auth` doesn't currently run restic. Pocket-ID's state is small (sqlite +
-config), and adding restic here is the right time to do it.
+config), and adding restic here is the right time to do it. Same goes for
+`nass`'s new ntfy backup — `user.db` is small but recovery-critical (losing
+it forces a rotate-everywhere on writer tokens).
 
 ```nix
+# On auth
 services.restic.backups.pocket-id = {
   paths = [ "/var/lib/pocket-id" ];
-  repository = "b2:<bucket>:auth/pocket-id";  # bucket name out-of-band
-  passwordFile = "/etc/restic-pocket-id.password";
-  environmentFile = "/etc/restic-pocket-id.env";  # B2 keyID + appKey
+  repository = "s3:https://${b2Endpoint}/${b2Bucket}/pocket-id";
+  passwordFile = "/etc/restic/password";
+  environmentFile = "/etc/restic/b2.env";
+  initialize = true;
   timerConfig = {
     OnCalendar = "daily";
     RandomizedDelaySec = "30m";
@@ -232,15 +224,16 @@ services.restic.backups.pocket-id = {
 systemd.services."ntfy-failed-restic-pocket-id" =
   mkNtfyOnFailure {
     topic = "homelab-critical";
-    title = "auth: restic-backups-pocket-id failed";
+    title = "auth: restic backup (pocket-id) failed";
   } "restic-backups-pocket-id.service";
 systemd.services.restic-backups-pocket-id.onFailure =
   [ "ntfy-failed-restic-pocket-id.service" ];
 ```
 
-B2 credentials at `/etc/restic-pocket-id.{password,env}` provisioned
-out-of-band (same pattern as nass's existing restic units). New B2
-application key scoped to the `auth/` prefix only.
+`nass`'s new ntfy backup follows the same shape pointed at the `ntfy/`
+prefix in the same bucket. Both reuse the standard
+`/etc/restic/{password,b2.env}` credential paths already present on
+those hosts.
 
 ### Per-app OIDC client config
 
@@ -286,10 +279,9 @@ key is in place.
 3. `sudo systemctl start tailscale-cert` to issue both certs into the new
    per-FQDN subdirs.
 4. `sudo systemctl restart pocket-id nginx` so both pick up the new state.
-5. Open `https://id.tail1ec6c3.ts.net/setup` in a browser. Pocket-ID exposes
-   a one-time admin setup flow on first launch (exact mechanism — token in
-   journal vs. open-until-claimed setup page — verified at plan time).
-   Register the first passkey and set the admin email.
+5. Open `https://auth.tail1ec6c3.ts.net/setup` in a browser. Pocket-ID's
+   setup page is open-until-claimed: the first browser to submit the form
+   becomes the admin. Register the first passkey and set the admin email.
 6. In the admin UI, create one OIDC client per Phase 1 app (Grafana,
    Nextcloud). Note client_id and client_secret.
 7. Drop each app's `/etc/<app>-oidc.env` onto the right host (mode
