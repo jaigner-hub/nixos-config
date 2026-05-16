@@ -133,12 +133,16 @@ in
   };
 
   systemd.tmpfiles.rules = [
-    "d /mnt/storage 0755 root root -"
+    # jellyfin owns the root so putio-sync (running as jellyfin) can create
+    # top-level media folders like Movies/, TV Shows/, etc. Mode 0755 keeps
+    # the directory world-listable so filebrowser/nfs clients can traverse
+    # it, but only jellyfin can create new entries at the root.
+    "d /mnt/storage 0755 jellyfin jellyfin -"
     "d /mnt/storage/nextcloud 0700 nextcloud nextcloud -"
     "d /mnt/storage/immich 0700 immich immich -"
-    # Writable drop-zone for filebrowser. /mnt/storage itself is
-    # 0755 root:root so filebrowser can list it but not create files
-    # there — this gives it one subdirectory it owns for share-link use.
+    # Writable drop-zone for filebrowser. /mnt/storage itself is owned by
+    # jellyfin, so filebrowser can list it but not create files there —
+    # this gives it one subdirectory it owns for share-link use.
     "d /mnt/storage/shared 0755 filebrowser filebrowser -"
     # SleepTimer plugin install. `L+` overwrites any prior symlink so
     # version bumps land cleanly on rebuild. Only the DLL is symlinked
@@ -154,6 +158,12 @@ in
       ExecStart = "${pythonWithPackages}/bin/python3 ${syncScript}/bin/putio-sync";
       Type = "oneshot";
       EnvironmentFile = "/etc/putio-sync.env";
+      # The script shells out via `sudo -u jellyfin ...`. On NixOS, the
+      # setuid sudo wrapper lives at /run/wrappers/bin/sudo; without it on
+      # PATH, subprocess.run(["sudo", ...]) fails with FileNotFoundError.
+      # sudo's default secure_path (set by the nixpkgs module) handles
+      # finding cat/tee/mkdir/curl/find once sudo itself starts.
+      Environment = "PATH=/run/wrappers/bin:/run/current-system/sw/bin";
     };
   };
 

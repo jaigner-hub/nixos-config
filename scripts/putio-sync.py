@@ -35,7 +35,7 @@ def load_manifest(dest):
     path = os.path.join(dest, ".putio-sync-manifest.json")
     if os.path.exists(path):
         result = subprocess.run(
-            ["sudo", "-u", "plex", "cat", path],
+            ["sudo", "-u", "jellyfin", "cat", path],
             capture_output=True, text=True,
         )
         if result.returncode == 0 and result.stdout.strip():
@@ -47,7 +47,7 @@ def save_manifest(dest, manifest):
     path = os.path.join(dest, ".putio-sync-manifest.json")
     data = json.dumps(manifest, indent=2)
     result = subprocess.run(
-        ["sudo", "-u", "plex", "tee", path],
+        ["sudo", "-u", "jellyfin", "tee", path],
         input=data, text=True, capture_output=True,
     )
     if result.returncode != 0:
@@ -100,13 +100,13 @@ def get_download_url(file_id, token):
 
 
 def download_file(url, local_path):
-    """Download using curl with resume support, running as plex user. Returns True on success."""
+    """Download using curl with resume support, running as jellyfin user. Returns True on success."""
     subprocess.run(
-        ["sudo", "-u", "plex", "mkdir", "-p", os.path.dirname(local_path)],
+        ["sudo", "-u", "jellyfin", "mkdir", "-p", os.path.dirname(local_path)],
         check=True,
     )
     result = subprocess.run(
-        ["sudo", "-u", "plex", "curl", "-C", "-", "-L", "--progress-bar", "-o", local_path, url],
+        ["sudo", "-u", "jellyfin", "curl", "-C", "-", "-L", "--progress-bar", "-o", local_path, url],
         stdin=subprocess.DEVNULL,
     )
     return result.returncode == 0
@@ -150,9 +150,9 @@ def main():
         # Build map of local file sizes -> paths
         print(f"Scanning local files in {args.dest}...")
         local_by_size = {}
-        # Use sudo -u plex find to list files accessible by plex
+        # Use sudo -u jellyfin find to list files accessible by jellyfin
         result = subprocess.run(
-            ["sudo", "-u", "plex", "find", args.dest, "-type", "f", "-printf", "%s\\t%p\\n"],
+            ["sudo", "-u", "jellyfin", "find", args.dest, "-type", "f", "-printf", "%s\\t%p\\n"],
             capture_output=True, text=True,
         )
         if result.returncode == 0:
