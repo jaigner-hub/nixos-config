@@ -5,6 +5,8 @@ let
     requests
   ]);
   syncScript = pkgs.writeScriptBin "putio-sync" (builtins.readFile ../../scripts/putio-sync.py);
+  jellyfinTvDataScript = pkgs.writeScriptBin "gen-jellyfin-tv-data"
+    (builtins.readFile ../../scripts/gen-jellyfin-tv-data.py);
   sleepTimerPlugin = import ./jellyfin-sleep-timer.nix { inherit pkgs; };
   # Jellyfin's plugin loader expects a 4-component version in the directory
   # name (Plugin.Version.ToString() = "1.1.0.0", not "1.1.0").
@@ -174,31 +176,20 @@ in
     };
   };
 
-  # Daily refresh of the XMLTV EPG that Jellyfin's Live TV reads from.
-  # Originally a Windows scheduled task; ported here so it lives with the
-  # rest of the fleet. Atomic mv keeps Jellyfin from reading a half-written
-  # file mid-download.
+  # Daily refresh of Jellyfin Live TV data. Downloads two XMLTV feeds from
+  # epgshare01 (US_LOCALS1 = OTA mains, US2 = diginets/cable nets) and
+  # regenerates an M3U from the HDHomeRun's lineup with tvg-id values that
+  # point at the matching XMLTV channel ids — so Jellyfin auto-maps the
+  # guide without manual per-channel mapping. Atomic-mv on every output so
+  # Jellyfin never reads a half-written file.
   systemd.services.jellyfin-epg-update = {
-    description = "Refresh XMLTV EPG for Jellyfin Live TV";
+    description = "Refresh XMLTV EPG + HDHomeRun M3U for Jellyfin Live TV";
     serviceConfig = {
       Type = "oneshot";
       User = "jellyfin";
       Group = "jellyfin";
+      ExecStart = "${pkgs.python3}/bin/python3 ${jellyfinTvDataScript}/bin/gen-jellyfin-tv-data";
     };
-    path = [ pkgs.curl pkgs.gzip pkgs.coreutils ];
-    script = ''
-      set -euo pipefail
-      epgDir=/mnt/storage/chill.institute/epg
-      mkdir -p "$epgDir"
-      # Stream the gzipped feed through gunzip into a sibling temp file, then
-      # atomic-mv into place so Jellyfin never sees a half-written XML. set
-      # -o pipefail makes curl failures (e.g. upstream 5xx) propagate.
-      curl -fsSL --max-time 600 \
-        https://epgshare01.online/epgshare01/epg_ripper_US_LOCALS1.xml.gz \
-        | gzip -d > "$epgDir/epg_ripper_US_LOCALS1.xml.new"
-      mv -f "$epgDir/epg_ripper_US_LOCALS1.xml.new" \
-            "$epgDir/epg_ripper_US_LOCALS1.xml"
-    '';
   };
 
   systemd.timers.jellyfin-epg-update = {
