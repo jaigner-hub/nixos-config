@@ -1,6 +1,8 @@
 { config, pkgs, claude-code-nix, hostKey, ... }:
 
 {
+  imports = [ ./ntfy-notify.nix ];
+
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
   nix.settings.trusted-users = [ "root" "jeff" ];
 
