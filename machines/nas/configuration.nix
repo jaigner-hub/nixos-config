@@ -141,10 +141,11 @@ in
     # there — this gives it one subdirectory it owns for share-link use.
     "d /mnt/storage/shared 0755 filebrowser filebrowser -"
     # SleepTimer plugin install. `L+` overwrites any prior symlink so
-    # version bumps land cleanly on rebuild.
+    # version bumps land cleanly on rebuild. Only the DLL is symlinked
+    # from /nix/store; meta.json is written by Jellyfin at runtime and
+    # stays in /var/lib (mutable).
     "d ${sleepTimerPluginDir} 0700 jellyfin jellyfin -"
     "L+ ${sleepTimerPluginDir}/Jellyfin.Plugin.SleepTimer.dll - - - - ${sleepTimerPlugin}/lib/Jellyfin.Plugin.SleepTimer.dll"
-    "L+ ${sleepTimerPluginDir}/meta.json - - - - ${sleepTimerPlugin}/lib/meta.json"
   ];
 
   systemd.services.putio-sync = {

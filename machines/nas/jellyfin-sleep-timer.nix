@@ -23,9 +23,13 @@ pkgs.stdenvNoCC.mkDerivation rec {
   installPhase = ''
     runHook preInstall
     install -Dm644 Jellyfin.Plugin.SleepTimer.dll $out/lib/Jellyfin.Plugin.SleepTimer.dll
-    install -Dm644 meta.json $out/lib/meta.json
     runHook postInstall
   '';
+
+  # Intentionally not installing meta.json: Jellyfin's PluginManager
+  # writes back to it (state tracking), so it can't live in the read-only
+  # Nix store. The plugin dir is owned by jellyfin:jellyfin 0700, so
+  # Jellyfin generates a fresh meta.json there on first load.
 
   meta = {
     description = "Jellyfin server-side sleep timer plugin";
