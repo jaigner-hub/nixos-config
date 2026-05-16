@@ -1,4 +1,4 @@
-{ config, pkgs, claude-code-nix, ... }:
+{ config, pkgs, claude-code-nix, mkNtfyOnFailure, ... }:
 
 let
   tailnet = "tail1ec6c3.ts.net";
@@ -88,6 +88,17 @@ in
       RandomizedDelaySec = "1h";
     };
   };
+
+  # ntfy failure notification. This host *is* the ntfy server, so a
+  # tailscale-cert failure here also takes down the way every other host
+  # publishes — but ntfy-notify itself fails-silent on network errors,
+  # so the rest of the fleet won't cascade.
+  systemd.services."ntfy-failed-tailscale-cert" =
+    mkNtfyOnFailure {
+      topic = "homelab-warn";
+      title = "auth: tailscale-cert failed";
+    } "tailscale-cert.service";
+  systemd.services.tailscale-cert.onFailure = [ "ntfy-failed-tailscale-cert.service" ];
 
   system.stateVersion = "25.11";
 }
