@@ -5,6 +5,10 @@ let
     requests
   ]);
   syncScript = pkgs.writeScriptBin "putio-sync" (builtins.readFile ../../scripts/putio-sync.py);
+  sleepTimerPlugin = import ./jellyfin-sleep-timer.nix { inherit pkgs; };
+  # Jellyfin's plugin loader expects a 4-component version in the directory
+  # name (Plugin.Version.ToString() = "1.1.0.0", not "1.1.0").
+  sleepTimerPluginDir = "/var/lib/jellyfin/plugins/SleepTimer_${sleepTimerPlugin.version}.0";
   b2Bucket = "Backup-jaigner-homelab";
   b2Endpoint = "s3.us-east-005.backblazeb2.com";
   publicFqdn = "files.youtalklikeafag.com";
@@ -43,6 +47,11 @@ in
     enable = true;
     openFirewall = true;
   };
+
+  # SleepTimer plugin: drop the prebuilt DLL into Jellyfin's plugins dir
+  # via tmpfiles, and restart Jellyfin whenever the derivation hash changes
+  # so version bumps activate without a manual restart.
+  systemd.services.jellyfin.restartTriggers = [ sleepTimerPlugin ];
 
   services.samba = {
     enable = true;
@@ -131,6 +140,11 @@ in
     # 0755 root:root so filebrowser can list it but not create files
     # there — this gives it one subdirectory it owns for share-link use.
     "d /mnt/storage/shared 0755 filebrowser filebrowser -"
+    # SleepTimer plugin install. `L+` overwrites any prior symlink so
+    # version bumps land cleanly on rebuild.
+    "d ${sleepTimerPluginDir} 0700 jellyfin jellyfin -"
+    "L+ ${sleepTimerPluginDir}/Jellyfin.Plugin.SleepTimer.dll - - - - ${sleepTimerPlugin}/lib/Jellyfin.Plugin.SleepTimer.dll"
+    "L+ ${sleepTimerPluginDir}/meta.json - - - - ${sleepTimerPlugin}/lib/meta.json"
   ];
 
   systemd.services.putio-sync = {
