@@ -17,6 +17,8 @@ let
     "adguard:9100"
     "adguard2:9100"
     "paperless:9100"
+    "immich:9100"
+    "auth:9100"
     "10.0.0.55:9100"
   ];
   b2Bucket = "Backup-jaigner-homelab";
