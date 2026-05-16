@@ -171,43 +171,47 @@ def jf_request(method, path, api_key, body=None):
 
 
 def push_mappings(lineup, locals_ids, us2_ids):
-    """POST a ChannelMappings entry for every HDHomeRun channel my resolver
-    can match. Jellyfin's own auto-matcher is unreliable, so we write the
-    mappings explicitly. Idempotent: re-POSTing the same pair is a no-op.
+    """Rewrite the ChannelMappings arrays in Jellyfin's livetv config in one
+    POST. Per-mapping POSTs race with Jellyfin's read-modify-write of
+    livetv.xml and silently drop entries; a single full-config POST is
+    atomic. Preserves any existing manual hdhr_ entries my resolver doesn't
+    produce (so handcrafted mappings for unmatched subchannels survive).
     """
     api_key = os.environ.get("JELLYFIN_API_KEY")
     if not api_key:
         print("  JELLYFIN_API_KEY not set; skipping API push")
         return
     cfg = jf_request("GET", "/System/Configuration/livetv", api_key)
-    providers = {p["Path"]: p["Id"] for p in cfg.get("ListingProviders", [])}
-    locals_pid = providers.get(str(LOCALS_XML))
-    us2_pid = providers.get(str(US2_XML))
-    if not (locals_pid and us2_pid):
-        print(f"  WARN: missing XMLTV providers in Jellyfin config: {providers}")
-        return
-    pushed = failed = 0
+    locals_new = []
+    us2_new = []
     for ch in lineup:
         xmltv_id = resolve(ch, locals_ids, us2_ids)
         if not xmltv_id:
             continue
-        pid = locals_pid if xmltv_id.endswith(".us_locals1") else us2_pid
-        try:
-            jf_request(
-                "POST",
-                "/LiveTv/ChannelMappings",
-                api_key,
-                {
-                    "ProviderId": pid,
-                    "TunerChannelId": f"hdhr_{ch['GuideNumber']}",
-                    "ProviderChannelId": xmltv_id,
-                },
-            )
-            pushed += 1
-        except urllib.error.HTTPError as e:
-            failed += 1
-            print(f"  FAIL {ch['GuideNumber']} {ch['GuideName']} -> {xmltv_id}: HTTP {e.code}")
-    print(f"  Pushed {pushed} mappings to Jellyfin ({failed} failed)")
+        entry = {"Name": f"hdhr_{ch['GuideNumber']}", "Value": xmltv_id}
+        (locals_new if xmltv_id.endswith(".us_locals1") else us2_new).append(entry)
+    my_keys = {e["Name"] for e in locals_new} | {e["Name"] for e in us2_new}
+    touched = []
+    for p in cfg.get("ListingProviders", []):
+        path = p["Path"]
+        if path == str(LOCALS_XML):
+            new = locals_new
+        elif path == str(US2_XML):
+            new = us2_new
+        else:
+            continue
+        preserved = [
+            m for m in p.get("ChannelMappings", [])
+            if m["Name"].startswith("hdhr_") and m["Name"] not in my_keys
+        ]
+        p["ChannelMappings"] = new + preserved
+        touched.append((path.rsplit("/", 1)[-1], len(new), len(preserved)))
+    if not touched:
+        print("  WARN: no XMLTV providers matched LOCALS_XML/US2_XML")
+        return
+    jf_request("POST", "/System/Configuration/livetv", api_key, cfg)
+    for name, scripted, preserved in touched:
+        print(f"  {name}: {scripted} scripted + {preserved} preserved manual")
 
 
 def write_m3u(lineup, locals_ids, us2_ids):
