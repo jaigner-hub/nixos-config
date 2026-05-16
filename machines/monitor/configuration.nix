@@ -110,7 +110,7 @@ in
       # below). $NTFY_TOKEN is expanded by Gatus at runtime, not by Nix.
       alerting = {
         ntfy = {
-          url = "https://auth.${tailnet}";
+          url = "https://nass.${tailnet}";
           topic = "homelab-warn";
           token = "$NTFY_TOKEN";
           default-alert = {
@@ -205,7 +205,7 @@ in
         {
           name = "ntfy";
           group = "internal";
-          url = "https://auth.${tailnet}/v1/health";
+          url = "https://nass.${tailnet}/v1/health";
           interval = "1m";
           conditions = [ "[STATUS] == 200" "[BODY].healthy == true" ];
           alerts = [ { type = "ntfy"; } ];

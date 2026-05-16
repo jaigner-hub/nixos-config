@@ -15,6 +15,9 @@ let
   b2Endpoint = "s3.us-east-005.backblazeb2.com";
   publicFqdn = "files.youtalklikeafag.com";
   tunnelId = "2b4f31f7-96a2-4df5-9544-a8b57f21a380";
+  tailnet = "tail1ec6c3.ts.net";
+  fqdn = "nass.${tailnet}";
+  certDir = "/var/lib/tailscale-cert";
 in
 {
   imports = [
@@ -108,7 +111,75 @@ in
     nfsd.vers4 = true;
   };
 
-  networking.firewall.interfaces.tailscale0.allowedTCPPorts = [ 2049 ];
+  networking.firewall.interfaces.tailscale0.allowedTCPPorts = [ 2049 443 ];
+
+  # Self-hosted ntfy. Moved here from `auth` after the Pocket-ID rollout —
+  # Pocket-ID needs to own the root of `auth.tail1ec6c3.ts.net` for OIDC and
+  # WebAuthn, and Tailscale only issues a cert per machine's own MagicDNS
+  # name, so ntfy moved to a host with no nginx-root conflict. nass was the
+  # natural pick: always-on, no existing tailnet vhost.
+  #
+  # User database at /var/lib/ntfy-sh/user.db (managed by ntfy). On the
+  # migration deploy, the existing user.db was rsynced from auth to preserve
+  # the writer token used fleet-wide.
+  services.ntfy-sh = {
+    enable = true;
+    settings = {
+      base-url = "https://${fqdn}";
+      listen-http = "127.0.0.1:2586";
+      auth-file = "/var/lib/ntfy-sh/user.db";
+      auth-default-access = "deny-all";
+      behind-proxy = true;
+    };
+  };
+
+  services.nginx = {
+    enable = true;
+    recommendedProxySettings = true;
+    recommendedTlsSettings = true;
+    recommendedOptimisation = true;
+    recommendedGzipSettings = true;
+    virtualHosts.${fqdn} = {
+      forceSSL = true;
+      sslCertificate = "${certDir}/cert.pem";
+      sslCertificateKey = "${certDir}/key.pem";
+      locations."/" = {
+        proxyPass = "http://127.0.0.1:2586";
+        proxyWebsockets = true;
+      };
+    };
+  };
+
+  # See `project_tailscale_cert.md`: this must be started manually
+  # (`sudo systemctl start tailscale-cert`) on first deploy before nginx
+  # finds the cert. Weekly timer keeps it renewed afterwards.
+  systemd.services.tailscale-cert = {
+    description = "Issue/renew tailscale-issued TLS cert for nass (ntfy)";
+    after = [ "tailscaled.service" "network-online.target" ];
+    wants = [ "network-online.target" ];
+    serviceConfig.Type = "oneshot";
+    script = ''
+      set -euo pipefail
+      mkdir -p ${certDir}
+      ${pkgs.tailscale}/bin/tailscale cert \
+        --cert-file ${certDir}/cert.pem \
+        --key-file ${certDir}/key.pem \
+        ${fqdn}
+      chown -R nginx:nginx ${certDir}
+      chmod 0644 ${certDir}/cert.pem
+      chmod 0600 ${certDir}/key.pem
+      ${pkgs.systemd}/bin/systemctl reload-or-restart nginx.service || true
+    '';
+  };
+
+  systemd.timers.tailscale-cert = {
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnCalendar = "weekly";
+      Persistent = true;
+      RandomizedDelaySec = "1h";
+    };
+  };
 
   # Physical disks passed through from the Proxmox host as raw SCSI.
   # Union-mounted at /mnt/storage via mergerfs so the 21.8 TB and 4.5 TB
@@ -335,6 +406,27 @@ in
     ];
   };
 
+  # Daily encrypted backup of ntfy state (user.db with writer tokens).
+  # Small file but recovery-critical — losing user.db invalidates every
+  # writer token across the fleet, forcing a rotate-everywhere operation.
+  services.restic.backups.ntfy = {
+    paths = [ "/var/lib/ntfy-sh" ];
+    repository = "s3:https://${b2Endpoint}/${b2Bucket}/ntfy";
+    passwordFile = "/etc/restic/password";
+    environmentFile = "/etc/restic/b2.env";
+    initialize = true;
+    timerConfig = {
+      OnCalendar = "daily";
+      Persistent = true;
+      RandomizedDelaySec = "30m";
+    };
+    pruneOpts = [
+      "--keep-daily 7"
+      "--keep-weekly 4"
+      "--keep-monthly 6"
+    ];
+  };
+
   # Daily encrypted backup of filebrowser state (BoltDB at
   # /var/lib/filebrowser/database.db, which holds the admin user record
   # and all generated share links). Reuses the restic password + B2
@@ -397,6 +489,31 @@ in
       title = "nas: restic filebrowser backup failed";
     } "restic-backups-filebrowser.service";
   systemd.services.restic-backups-filebrowser.onFailure = [ "ntfy-failed-restic-filebrowser.service" ];
+
+  systemd.services."ntfy-failed-restic-ntfy" =
+    mkNtfyOnFailure {
+      topic = "homelab-critical";
+      title = "nas: restic ntfy backup failed";
+    } "restic-backups-ntfy.service";
+  systemd.services.restic-backups-ntfy.onFailure = [ "ntfy-failed-restic-ntfy.service" ];
+
+  # ntfy is the publisher of its own failure alerts, so a downed ntfy
+  # can't tell anyone about itself. Gatus on monitor cross-checks via the
+  # ntfy `internal` endpoint and pages out independently if this host's
+  # ntfy stops answering.
+  systemd.services."ntfy-failed-ntfy" =
+    mkNtfyOnFailure {
+      topic = "homelab-critical";
+      title = "nas: ntfy-sh failed";
+    } "ntfy-sh.service";
+  systemd.services.ntfy-sh.onFailure = [ "ntfy-failed-ntfy.service" ];
+
+  systemd.services."ntfy-failed-tailscale-cert" =
+    mkNtfyOnFailure {
+      topic = "homelab-warn";
+      title = "nas: tailscale-cert failed";
+    } "tailscale-cert.service";
+  systemd.services.tailscale-cert.onFailure = [ "ntfy-failed-tailscale-cert.service" ];
 
   # cloudflared tunnel failure is warn-tier: the public filebrowser path goes
   # down but LAN Samba/Jellyfin/NFS keep working.

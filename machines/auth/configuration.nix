@@ -2,9 +2,7 @@
 
 let
   tailnet = "tail1ec6c3.ts.net";
-  ntfyFqdn = "auth.${tailnet}";
-  idFqdn = "id.${tailnet}";
-  certFqdns = [ ntfyFqdn idFqdn ];
+  fqdn = "auth.${tailnet}";
   certDir = "/var/lib/tailscale-cert";
 
   b2Bucket = "Backup-jaigner-homelab";
@@ -21,27 +19,17 @@ in
 
   networking.hostName = "auth";
 
-  # Self-hosted ntfy. Listens on loopback; nginx terminates TLS using the
-  # tailscale-issued cert for ntfyFqdn.
-  services.ntfy-sh = {
-    enable = true;
-    settings = {
-      base-url = "https://${ntfyFqdn}";
-      listen-http = "127.0.0.1:2586";
-      auth-file = "/var/lib/ntfy-sh/user.db";
-      auth-default-access = "deny-all";
-      behind-proxy = true;
-    };
-  };
-
   # Pocket-ID. Single-binary OIDC IdP, SQLite-backed. The encryption key
   # at /etc/pocket-id/encryption-key is provisioned out-of-band on first
   # boot (see Task 2). Without it, pocket-id fails to start — that's the
   # expected first-deploy state and recovers on the manual restart in Task 2.
+  #
+  # WebAuthn relying-party ID is bound to this FQDN. If APP_URL ever
+  # changes, every registered passkey is invalidated.
   services.pocket-id = {
     enable = true;
     settings = {
-      APP_URL = "https://${idFqdn}";
+      APP_URL = "https://${fqdn}";
       TRUST_PROXY = true;
       PORT = 3000;
       ANALYTICS_DISABLED = true;
@@ -55,21 +43,10 @@ in
     recommendedTlsSettings = true;
     recommendedOptimisation = true;
     recommendedGzipSettings = true;
-
-    virtualHosts.${ntfyFqdn} = {
+    virtualHosts.${fqdn} = {
       forceSSL = true;
-      sslCertificate = "${certDir}/${ntfyFqdn}/cert.pem";
-      sslCertificateKey = "${certDir}/${ntfyFqdn}/key.pem";
-      locations."/" = {
-        proxyPass = "http://127.0.0.1:2586";
-        proxyWebsockets = true;
-      };
-    };
-
-    virtualHosts.${idFqdn} = {
-      forceSSL = true;
-      sslCertificate = "${certDir}/${idFqdn}/cert.pem";
-      sslCertificateKey = "${certDir}/${idFqdn}/key.pem";
+      sslCertificate = "${certDir}/cert.pem";
+      sslCertificateKey = "${certDir}/key.pem";
       locations."/" = {
         proxyPass = "http://127.0.0.1:3000";
         proxyWebsockets = true;
@@ -79,28 +56,24 @@ in
 
   networking.firewall.interfaces.tailscale0.allowedTCPPorts = [ 443 ];
 
-  # Issue tailscale certs for every FQDN this host serves. Each lands at
-  # ${certDir}/<fqdn>/{cert,key}.pem so nginx vhosts can reference their
-  # own cert independently. First deploy needs a manual
-  # `systemctl start tailscale-cert` — the timer keeps them renewed weekly
-  # after that.
+  # See `project_tailscale_cert.md`: this must be started manually
+  # (`sudo systemctl start tailscale-cert`) on first deploy before nginx
+  # finds the cert. Weekly timer keeps it renewed afterwards.
   systemd.services.tailscale-cert = {
-    description = "Issue/renew tailscale-issued TLS certs for ${lib.concatStringsSep ", " certFqdns}";
+    description = "Issue/renew tailscale-issued TLS cert for ${fqdn} (pocket-id)";
     after = [ "tailscaled.service" "network-online.target" ];
     wants = [ "network-online.target" ];
     serviceConfig.Type = "oneshot";
     script = ''
       set -euo pipefail
-      ${lib.concatMapStringsSep "\n" (f: ''
-        mkdir -p ${certDir}/${f}
-        ${pkgs.tailscale}/bin/tailscale cert \
-          --cert-file ${certDir}/${f}/cert.pem \
-          --key-file ${certDir}/${f}/key.pem \
-          ${f}
-      '') certFqdns}
+      mkdir -p ${certDir}
+      ${pkgs.tailscale}/bin/tailscale cert \
+        --cert-file ${certDir}/cert.pem \
+        --key-file ${certDir}/key.pem \
+        ${fqdn}
       chown -R nginx:nginx ${certDir}
-      find ${certDir} -name cert.pem -exec chmod 0644 {} +
-      find ${certDir} -name key.pem -exec chmod 0600 {} +
+      chmod 0644 ${certDir}/cert.pem
+      chmod 0600 ${certDir}/key.pem
       ${pkgs.systemd}/bin/systemctl reload-or-restart nginx.service || true
     '';
   };
@@ -115,7 +88,7 @@ in
   };
 
   # Daily restic backup of pocket-id's SQLite store + config to B2.
-  # Secrets at /etc/restic/{password,b2.env} (same convention as monitor/nas).
+  # Secrets at /etc/restic/{password,b2.env} (same convention as nass/monitor).
   # The B2 application key for this repo is scoped to the pocket-id/ prefix only.
   services.restic.backups.pocket-id = {
     paths = [ "/var/lib/pocket-id" ];
@@ -135,9 +108,8 @@ in
     ];
   };
 
-  # OnFailure hooks. ntfy is the publisher and the subscriber's primary
-  # signal — if pocket-id breaks, the operator needs to know fast (every
-  # SSO-integrated app loses login the moment Pocket-ID is unavailable).
+  # OnFailure hooks. Pocket-ID is critical — every SSO-integrated app loses
+  # login the moment it goes down — so its failure pages out immediately.
   systemd.services."ntfy-failed-tailscale-cert" =
     mkNtfyOnFailure {
       topic = "homelab-warn";

@@ -1,7 +1,7 @@
 { config, lib, pkgs, ... }:
 
 let
-  ntfyUrl = "https://auth.tail1ec6c3.ts.net";
+  ntfyUrl = "https://nass.tail1ec6c3.ts.net";
 
   # POSTs $3 to ntfy topic $1 with title $2, using the writer token at
   # /etc/ntfy-token. Fails-silent on network/curl errors so a missing token
