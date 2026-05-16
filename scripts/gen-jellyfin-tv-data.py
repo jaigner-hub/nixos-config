@@ -153,6 +153,61 @@ def resolve(ch, locals_ids, us2_ids):
     return None
 
 
+def xml_escape(s):
+    return (
+        s.replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+    )
+
+
+def build_aliases(lineup, locals_ids, us2_ids):
+    """Group (GuideNumber, GuideName) by matched XMLTV id, split per feed."""
+    locals_aliases = {}
+    us2_aliases = {}
+    for ch in lineup:
+        xmltv_id = resolve(ch, locals_ids, us2_ids)
+        if not xmltv_id:
+            continue
+        bucket = locals_aliases if xmltv_id.endswith(".us_locals1") else us2_aliases
+        bucket.setdefault(xmltv_id, []).append((ch["GuideNumber"], ch["GuideName"]))
+    return locals_aliases, us2_aliases
+
+
+def rewrite_xmltv_with_aliases(xml_path, aliases):
+    """Inject <display-name> lines for HDHomeRun GuideNumber + GuideName
+    into each matched <channel> block. Lets Jellyfin's native auto-matcher
+    bind HDHomeRun channels to guide data without manual UI mapping.
+    """
+    chan_open = re.compile(rb'<channel\s+id="([^"]+)"')
+    tmp = xml_path.with_suffix(xml_path.suffix + ".new")
+    pending = []
+    injected = 0
+    with xml_path.open("rb") as src, tmp.open("wb") as dst:
+        for line in src:
+            m = chan_open.search(line)
+            if m:
+                pending = aliases.get(m.group(1).decode(), [])
+            if pending and b"</channel>" in line:
+                for num, name in pending:
+                    dst.write(
+                        b'    <display-name lang="en">'
+                        + xml_escape(num).encode()
+                        + b"</display-name>\n"
+                    )
+                    dst.write(
+                        b'    <display-name lang="en">'
+                        + xml_escape(name).encode()
+                        + b"</display-name>\n"
+                    )
+                injected += len(pending)
+                pending = []
+            dst.write(line)
+    os.replace(tmp, xml_path)
+    return injected
+
+
 def write_m3u(lineup, locals_ids, us2_ids):
     lines = ["#EXTM3U"]
     matched = 0
@@ -193,6 +248,13 @@ def main():
     print(f"Fetching HDHomeRun lineup from {HDHOMERUN_URL}")
     lineup = json.loads(http_get(HDHOMERUN_URL, timeout=30))
     print(f"  {len(lineup)} channels on tuner")
+
+    print("Injecting HDHomeRun aliases into XMLTV")
+    locals_aliases, us2_aliases = build_aliases(lineup, locals_ids, us2_ids)
+    n_locals = rewrite_xmltv_with_aliases(LOCALS_XML, locals_aliases)
+    n_us2 = rewrite_xmltv_with_aliases(US2_XML, us2_aliases)
+    print(f"  US_LOCALS1: {n_locals} aliases across {len(locals_aliases)} channels")
+    print(f"  US2:        {n_us2} aliases across {len(us2_aliases)} channels")
 
     print("Generating M3U")
     write_m3u(lineup, locals_ids, us2_ids)
