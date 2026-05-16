@@ -1,4 +1,4 @@
-{ config, lib, pkgs, claude-code-nix, ... }:
+{ config, lib, pkgs, claude-code-nix, mkNtfyOnFailure, ... }:
 
 let
   pythonWithPackages = pkgs.python3.withPackages (ps: with ps; [
@@ -316,6 +316,37 @@ in
       "--keep-monthly 12"
     ];
   };
+
+  # ntfy failure notifications. putio-sync is warn-tier (a missed sync run
+  # corrects itself on the next 15-minute tick). Restic failures are
+  # critical — a silent backup gap is the worst-case homelab failure mode.
+  systemd.services."ntfy-failed-putio-sync" =
+    mkNtfyOnFailure {
+      topic = "homelab-warn";
+      title = "nas: putio-sync failed";
+    } "putio-sync.service";
+  systemd.services.putio-sync.onFailure = [ "ntfy-failed-putio-sync.service" ];
+
+  systemd.services."ntfy-failed-restic-nextcloud" =
+    mkNtfyOnFailure {
+      topic = "homelab-critical";
+      title = "nas: restic nextcloud backup failed";
+    } "restic-backups-nextcloud.service";
+  systemd.services.restic-backups-nextcloud.onFailure = [ "ntfy-failed-restic-nextcloud.service" ];
+
+  systemd.services."ntfy-failed-restic-immich" =
+    mkNtfyOnFailure {
+      topic = "homelab-critical";
+      title = "nas: restic immich backup failed";
+    } "restic-backups-immich.service";
+  systemd.services.restic-backups-immich.onFailure = [ "ntfy-failed-restic-immich.service" ];
+
+  systemd.services."ntfy-failed-restic-filebrowser" =
+    mkNtfyOnFailure {
+      topic = "homelab-critical";
+      title = "nas: restic filebrowser backup failed";
+    } "restic-backups-filebrowser.service";
+  systemd.services.restic-backups-filebrowser.onFailure = [ "ntfy-failed-restic-filebrowser.service" ];
 
   system.stateVersion = "25.11";
 }
