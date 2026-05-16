@@ -153,59 +153,61 @@ def resolve(ch, locals_ids, us2_ids):
     return None
 
 
-def xml_escape(s):
-    return (
-        s.replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-        .replace('"', "&quot;")
+JELLYFIN_API = "http://localhost:8096"
+
+
+def jf_request(method, path, api_key, body=None):
+    headers = {"X-Emby-Token": api_key}
+    data = None
+    if body is not None:
+        headers["Content-Type"] = "application/json"
+        data = json.dumps(body).encode()
+    req = urllib.request.Request(
+        f"{JELLYFIN_API}{path}", data=data, headers=headers, method=method
     )
+    with urllib.request.urlopen(req, timeout=30) as r:
+        raw = r.read()
+    return json.loads(raw) if raw else None
 
 
-def build_aliases(lineup, locals_ids, us2_ids):
-    """Group (GuideNumber, GuideName) by matched XMLTV id, split per feed."""
-    locals_aliases = {}
-    us2_aliases = {}
+def push_mappings(lineup, locals_ids, us2_ids):
+    """POST a ChannelMappings entry for every HDHomeRun channel my resolver
+    can match. Jellyfin's own auto-matcher is unreliable, so we write the
+    mappings explicitly. Idempotent: re-POSTing the same pair is a no-op.
+    """
+    api_key = os.environ.get("JELLYFIN_API_KEY")
+    if not api_key:
+        print("  JELLYFIN_API_KEY not set; skipping API push")
+        return
+    cfg = jf_request("GET", "/System/Configuration/livetv", api_key)
+    providers = {p["Path"]: p["Id"] for p in cfg.get("ListingProviders", [])}
+    locals_pid = providers.get(str(LOCALS_XML))
+    us2_pid = providers.get(str(US2_XML))
+    if not (locals_pid and us2_pid):
+        print(f"  WARN: missing XMLTV providers in Jellyfin config: {providers}")
+        return
+    pushed = failed = 0
     for ch in lineup:
         xmltv_id = resolve(ch, locals_ids, us2_ids)
         if not xmltv_id:
             continue
-        bucket = locals_aliases if xmltv_id.endswith(".us_locals1") else us2_aliases
-        bucket.setdefault(xmltv_id, []).append((ch["GuideNumber"], ch["GuideName"]))
-    return locals_aliases, us2_aliases
-
-
-def rewrite_xmltv_with_aliases(xml_path, aliases):
-    """Inject <display-name> lines for HDHomeRun GuideNumber + GuideName
-    into each matched <channel> block. Lets Jellyfin's native auto-matcher
-    bind HDHomeRun channels to guide data without manual UI mapping.
-    """
-    chan_open = re.compile(rb'<channel\s+id="([^"]+)"')
-    tmp = xml_path.with_suffix(xml_path.suffix + ".new")
-    pending = []
-    injected = 0
-    with xml_path.open("rb") as src, tmp.open("wb") as dst:
-        for line in src:
-            m = chan_open.search(line)
-            if m:
-                pending = aliases.get(m.group(1).decode(), [])
-            if pending and b"</channel>" in line:
-                for num, name in pending:
-                    dst.write(
-                        b'    <display-name lang="en">'
-                        + xml_escape(num).encode()
-                        + b"</display-name>\n"
-                    )
-                    dst.write(
-                        b'    <display-name lang="en">'
-                        + xml_escape(name).encode()
-                        + b"</display-name>\n"
-                    )
-                injected += len(pending)
-                pending = []
-            dst.write(line)
-    os.replace(tmp, xml_path)
-    return injected
+        pid = locals_pid if xmltv_id.endswith(".us_locals1") else us2_pid
+        try:
+            jf_request(
+                "POST",
+                "/LiveTv/ChannelMappings",
+                api_key,
+                {
+                    "ProviderId": pid,
+                    "TunerChannelId": f"hdhr_{ch['GuideNumber']}",
+                    "ProviderChannelId": xmltv_id,
+                },
+            )
+            pushed += 1
+        except urllib.error.HTTPError as e:
+            failed += 1
+            print(f"  FAIL {ch['GuideNumber']} {ch['GuideName']} -> {xmltv_id}: HTTP {e.code}")
+    print(f"  Pushed {pushed} mappings to Jellyfin ({failed} failed)")
 
 
 def write_m3u(lineup, locals_ids, us2_ids):
@@ -249,12 +251,8 @@ def main():
     lineup = json.loads(http_get(HDHOMERUN_URL, timeout=30))
     print(f"  {len(lineup)} channels on tuner")
 
-    print("Injecting HDHomeRun aliases into XMLTV")
-    locals_aliases, us2_aliases = build_aliases(lineup, locals_ids, us2_ids)
-    n_locals = rewrite_xmltv_with_aliases(LOCALS_XML, locals_aliases)
-    n_us2 = rewrite_xmltv_with_aliases(US2_XML, us2_aliases)
-    print(f"  US_LOCALS1: {n_locals} aliases across {len(locals_aliases)} channels")
-    print(f"  US2:        {n_us2} aliases across {len(us2_aliases)} channels")
+    print("Pushing channel mappings to Jellyfin")
+    push_mappings(lineup, locals_ids, us2_ids)
 
     print("Generating M3U")
     write_m3u(lineup, locals_ids, us2_ids)

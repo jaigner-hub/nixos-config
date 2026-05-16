@@ -188,6 +188,9 @@ in
       Type = "oneshot";
       User = "jellyfin";
       Group = "jellyfin";
+      # /etc/jellyfin-epg.env carries JELLYFIN_API_KEY so the script can POST
+      # ChannelMappings to the local Jellyfin API. Provisioned out-of-band.
+      EnvironmentFile = "/etc/jellyfin-epg.env";
       ExecStart = "${pkgs.python3}/bin/python3 ${jellyfinTvDataScript}/bin/gen-jellyfin-tv-data";
     };
   };
