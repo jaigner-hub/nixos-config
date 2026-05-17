@@ -398,5 +398,80 @@ in
     } "prometheus-pve-exporter.service";
   systemd.services.prometheus-pve-exporter.onFailure = [ "ntfy-failed-pve-exporter.service" ];
 
+  # Hypervisor memory pressure alert. Polls Prometheus once a minute for the
+  # used/total RAM ratio on the Proxmox host; if 3 consecutive checks come
+  # back >= 90% it posts a single ntfy to homelab-warn and then stays quiet
+  # until the ratio drops back under 90% (avoids paging every minute).
+  # Implemented as a systemd timer rather than a Gatus endpoint because
+  # Prometheus returns the value as a JSON string and Gatus's `<` operator
+  # can't coerce that to a number (parses both sides as 0). The state file
+  # /var/lib/hypervisor-mem-alert/state holds the consecutive-high counter
+  # plus a flag for "already alerted, don't re-fire."
+  systemd.services.hypervisor-mem-alert = {
+    description = "Alert on sustained hypervisor memory pressure";
+    serviceConfig = {
+      Type = "oneshot";
+      StateDirectory = "hypervisor-mem-alert";
+    };
+    path = [ pkgs.curl pkgs.jq pkgs.gawk ];
+    script = ''
+      set -eu
+      state=$STATE_DIRECTORY/state
+      threshold=0.90
+
+      ratio=$(curl -fsS -G http://localhost:9090/api/v1/query \
+        --data-urlencode 'query=pve_memory_usage_bytes{id="node/hypervisor"} / pve_memory_size_bytes{id="node/hypervisor"}' \
+        | jq -r '.data.result[0].value[1] // "nan"')
+
+      if [ "$ratio" = "nan" ]; then
+        echo "no data from prometheus" >&2
+        exit 1
+      fi
+
+      over=$(awk -v r="$ratio" -v t="$threshold" 'BEGIN{print (r+0 >= t+0) ? 1 : 0}')
+
+      count=0
+      alerted=0
+      if [ -f "$state" ]; then
+        count=$(awk 'NR==1{print $1+0}' "$state")
+        alerted=$(awk 'NR==2{print $1+0}' "$state")
+      fi
+
+      if [ "$over" = "1" ]; then
+        count=$((count + 1))
+        if [ "$count" -ge 3 ] && [ "$alerted" = "0" ]; then
+          pct=$(awk -v r="$ratio" 'BEGIN{printf "%.1f", r*100}')
+          token=$(cat /etc/ntfy-token)
+          curl -fsS --max-time 10 \
+            -H "Authorization: Bearer $token" \
+            -H "Title: hypervisor RAM ''${pct}%" \
+            -H "Tags: warning" \
+            -d "Proxmox host has been at ''${pct}% memory for 3+ minutes. VMs are 2x overcommitted; investigate before something starts swapping." \
+            https://nass.${tailnet}/homelab-warn >/dev/null
+          alerted=1
+        fi
+      else
+        count=0
+        alerted=0
+      fi
+
+      printf '%d\n%d\n' "$count" "$alerted" > "$state"
+    '';
+  };
+  systemd.timers.hypervisor-mem-alert = {
+    description = "Run hypervisor memory pressure check every minute";
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnBootSec = "2m";
+      OnUnitActiveSec = "1m";
+    };
+  };
+  systemd.services."ntfy-failed-hypervisor-mem-alert" =
+    mkNtfyOnFailure {
+      topic = "homelab-warn";
+      title = "monitor: hypervisor-mem-alert failed";
+    } "hypervisor-mem-alert.service";
+  systemd.services.hypervisor-mem-alert.onFailure = [ "ntfy-failed-hypervisor-mem-alert.service" ];
+
   system.stateVersion = "25.11";
 }
