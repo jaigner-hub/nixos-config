@@ -52,5 +52,35 @@ in
 
   networking.firewall.interfaces.tailscale0.allowedTCPPorts = [ 443 ];
 
+  systemd.services.tailscale-cert = {
+    description = "Issue/renew tailscale-issued TLS cert for rss";
+    after = [ "tailscaled.service" "network-online.target" ];
+    wants = [ "network-online.target" ];
+    serviceConfig = {
+      Type = "oneshot";
+    };
+    script = ''
+      set -euo pipefail
+      mkdir -p ${certDir}
+      ${pkgs.tailscale}/bin/tailscale cert \
+        --cert-file ${certDir}/cert.pem \
+        --key-file ${certDir}/key.pem \
+        ${tailnetFqdn}
+      chown -R nginx:nginx ${certDir}
+      chmod 0644 ${certDir}/cert.pem
+      chmod 0600 ${certDir}/key.pem
+      ${pkgs.systemd}/bin/systemctl reload-or-restart nginx.service || true
+    '';
+  };
+
+  systemd.timers.tailscale-cert = {
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnCalendar = "weekly";
+      Persistent = true;
+      RandomizedDelaySec = "1h";
+    };
+  };
+
   system.stateVersion = "25.11";
 }
