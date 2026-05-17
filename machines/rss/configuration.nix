@@ -142,5 +142,37 @@ in
     ];
   };
 
+  # ntfy failure notifications. All warn-tier:
+  # - miniflux: user-visible if it stays down, but tailnet-only single user.
+  # - tailscale-cert: weekly renewal, ~3mo validity → days of recovery time.
+  # - miniflux-db-backup / restic: single missed day is recoverable.
+  systemd.services."ntfy-failed-miniflux" =
+    mkNtfyOnFailure {
+      topic = "homelab-warn";
+      title = "rss: miniflux failed";
+    } "miniflux.service";
+  systemd.services.miniflux.onFailure = [ "ntfy-failed-miniflux.service" ];
+
+  systemd.services."ntfy-failed-tailscale-cert" =
+    mkNtfyOnFailure {
+      topic = "homelab-warn";
+      title = "rss: tailscale-cert failed";
+    } "tailscale-cert.service";
+  systemd.services.tailscale-cert.onFailure = [ "ntfy-failed-tailscale-cert.service" ];
+
+  systemd.services."ntfy-failed-miniflux-db-backup" =
+    mkNtfyOnFailure {
+      topic = "homelab-warn";
+      title = "rss: miniflux-db-backup failed";
+    } "miniflux-db-backup.service";
+  systemd.services.miniflux-db-backup.onFailure = [ "ntfy-failed-miniflux-db-backup.service" ];
+
+  systemd.services."ntfy-failed-restic-rss" =
+    mkNtfyOnFailure {
+      topic = "homelab-warn";
+      title = "rss: restic backup failed";
+    } "restic-backups-rss.service";
+  systemd.services.restic-backups-rss.onFailure = [ "ntfy-failed-restic-rss.service" ];
+
   system.stateVersion = "25.11";
 }
