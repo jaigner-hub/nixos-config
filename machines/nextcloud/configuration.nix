@@ -45,6 +45,21 @@ in
     database.createLocally = true;
     configureRedis = true;
 
+    # user_oidc bridges Nextcloud's session/account model to an OIDC provider
+    # (Pocket-ID, here). The app is pulled from upstream releases at deploy
+    # time and dropped into Nextcloud's app directory; extraAppsEnable runs
+    # `occ app:enable` for it on every nextcloud-setup run. The provider
+    # itself is registered out-of-band via `occ user_oidc:provider` once,
+    # against the Pocket-ID client created in the admin UI.
+    extraApps = {
+      user_oidc = pkgs.fetchNextcloudApp {
+        url = "https://github.com/nextcloud-releases/user_oidc/releases/download/v8.10.1/user_oidc-v8.10.1.tar.gz";
+        sha256 = "1zb6yrfalw2s0zbnxdqpnxlhvjmrrjv3i5461dag80i337zd3kj9";
+        license = "agpl3Plus";
+      };
+    };
+    extraAppsEnable = true;
+
     config = {
       dbtype = "pgsql";
       adminuser = "jeff";
@@ -57,6 +72,12 @@ in
         publicFqdn
       ];
       default_phone_region = "US";
+
+      # Allow Nextcloud's PHP HTTP client to hit Pocket-ID at auth.tail1ec6c3.ts.net.
+      # Nextcloud's default SSRF defense blocks .ts.net (and other "local") hostnames;
+      # without this, user_oidc's discovery fetch returns "host violates local
+      # access rules" and the OIDC flow can't bootstrap.
+      allow_local_remote_servers = true;
 
       # Nextcloud's upstream is plain HTTP on loopback; TLS terminates at
       # the Cloudflare edge. Without these overrides Nextcloud detects
