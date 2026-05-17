@@ -42,7 +42,34 @@ in
       # Trust the reverse proxy; without this, CSRF rejects uploads.
       # Both nginx (tailnet) and cloudflared (public) connect from loopback.
       PAPERLESS_TRUSTED_PROXIES = "127.0.0.1";
+
+      # OIDC via Pocket-ID. PAPERLESS_APPS *appends* to django's
+      # INSTALLED_APPS — safe to set alongside paperless's own apps. The
+      # provider config (with the client_secret) lives in
+      # PAPERLESS_SOCIALACCOUNT_PROVIDERS, loaded from environmentFile
+      # below so the secret stays out of the Nix store.
+      PAPERLESS_APPS = "allauth.socialaccount.providers.openid_connect";
+
+      # First OIDC login auto-creates the local account (allauth
+      # otherwise stops on a "complete signup" form).
+      PAPERLESS_SOCIAL_AUTO_SIGNUP = "True";
+
+      # Match OIDC users to existing local users by email so the first
+      # OIDC login attaches to the existing `admin` account instead of
+      # forking a new one. EMAIL_VERIFICATION=none skips allauth's
+      # confirmation email step (we don't have outbound SMTP).
+      PAPERLESS_ACCOUNT_EMAIL_VERIFICATION = "none";
+      PAPERLESS_ACCOUNT_AUTHENTICATION_METHOD = "username_email";
     };
+
+    # Carries PAPERLESS_SOCIALACCOUNT_PROVIDERS — the whole provider JSON
+    # blob including client_secret. Mode 0600 paperless:paperless on the
+    # host. The value MUST be single-quoted: `KEY='{...json...}'`. systemd's
+    # EnvironmentFile parser strips the outer quotes, and the
+    # paperless-manage wrapper `source`s the same file from bash — without
+    # single quotes, bash interprets the `{}` and `""` and mangles the JSON,
+    # breaking every CLI invocation (`paperless-manage shell` etc).
+    environmentFile = "/etc/paperless-oidc.env";
   };
 
   services.nginx = {
