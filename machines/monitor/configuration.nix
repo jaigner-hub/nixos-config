@@ -99,6 +99,14 @@ in
         use_pkce = true;
         allow_sign_up = true;
         auto_login = false;
+        # Single-operator homelab: every SSO user is Org Admin. The JMESPath
+        # `to_string('Admin')` always evaluates to "Admin" — using a function
+        # call instead of the bare literal `'Admin'` matters because Grafana's
+        # INI parser strips outer single quotes from values, leaving bare
+        # `Admin` which JMESPath then treats as a userinfo field lookup
+        # (returns nothing → falls back to Viewer). Wrapping in to_string()
+        # keeps the value's first/last chars off the quote-strip path.
+        role_attribute_path = "to_string('Admin')";
       };
     };
 
