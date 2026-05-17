@@ -410,7 +410,11 @@ in
   # Small file but recovery-critical — losing user.db invalidates every
   # writer token across the fleet, forcing a rotate-everywhere operation.
   services.restic.backups.ntfy = {
-    paths = [ "/var/lib/ntfy-sh" ];
+    # /var/lib/ntfy-sh is a symlink to private/ntfy-sh (systemd DynamicUser),
+    # and restic doesn't follow top-level symlinks — the symlink target was
+    # captured as a single zero-byte entry. Point at the real path so
+    # user.db / cache-file.db / attachments actually land in the snapshot.
+    paths = [ "/var/lib/private/ntfy-sh" ];
     repository = "s3:https://${b2Endpoint}/${b2Bucket}/ntfy";
     passwordFile = "/etc/restic/password";
     environmentFile = "/etc/restic/b2.env";
