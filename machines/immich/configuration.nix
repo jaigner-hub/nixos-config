@@ -49,6 +49,32 @@ in
     host = "127.0.0.1";
     port = 2283;
     mediaLocation = dataDir;
+
+    # OAuth/OIDC via Pocket-ID. clientId/clientSecret are read at service
+    # start from the per-secret files via the module's _secret pattern:
+    # the upstream module runs jq with genJqSecretsReplacement and
+    # substitutes the file contents into the resolved config.json.
+    # `secretsFile` is NOT a JSON overlay (despite the name) — it's an
+    # EnvironmentFile, only used for DB-password-style flat env vars.
+    #
+    # mobileOverrideEnabled exposes /api/oauth/mobile-redirect, an HTTPS
+    # endpoint registered as a Pocket-ID callback. The mobile app's
+    # OIDC flow lands there and the server JS-redirects to the
+    # app.immich:/// deep link — Pocket-ID never sees the custom scheme
+    # (it wouldn't accept it; deep-link redirects are spoofable).
+    settings.oauth = {
+      enabled = true;
+      issuerUrl = "https://auth.tail1ec6c3.ts.net";
+      clientId._secret = "/etc/immich-oidc-clientid";
+      clientSecret._secret = "/etc/immich-oidc-clientsecret";
+      scope = "openid email profile";
+      buttonText = "Login with Pocket-ID";
+      autoRegister = true;
+      autoLaunch = false;
+      mobileOverrideEnabled = true;
+      mobileRedirectUri =
+        "https://immich.youtalklikeafag.com/api/oauth/mobile-redirect";
+    };
   };
 
   # Make sure the NFS mount is up before immich tries to touch its library.
