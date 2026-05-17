@@ -19,6 +19,7 @@ let
     "paperless:9100"
     "immich:9100"
     "auth:9100"
+    "rss:9100"
     "10.0.0.55:9100"
   ];
   b2Bucket = "Backup-jaigner-homelab";
@@ -277,6 +278,14 @@ in
           url = "https://nass.${tailnet}/v1/health";
           interval = "1m";
           conditions = [ "[STATUS] == 200" "[BODY].healthy == true" ];
+          alerts = [ { type = "ntfy"; } ];
+        }
+        {
+          name = "rss";
+          group = "homelab";
+          url = "https://rss.${tailnet}/healthz";
+          interval = "1m";
+          conditions = [ "[STATUS] == 200" "[CERTIFICATE_EXPIRATION] > 168h" ];
           alerts = [ { type = "ntfy"; } ];
         }
       ];
