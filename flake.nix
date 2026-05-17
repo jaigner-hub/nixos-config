@@ -22,6 +22,7 @@
         "paperless"
         "immich"
         "auth"
+        "rss"
       ];
 
       # Directory name == tailscale MagicDNS name, except `nas` uses hostname `nass`.
