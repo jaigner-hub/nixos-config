@@ -1,5 +1,10 @@
 { config, pkgs, claude-code-nix, mkNtfyOnFailure, ... }:
 
+let
+  tailnet = "tail1ec6c3.ts.net";
+  tailnetFqdn = "rss.${tailnet}";
+  certDir = "/var/lib/tailscale-cert";
+in
 {
   imports = [
     ../../common/base.nix
@@ -22,10 +27,30 @@
     adminCredentialsFile = "/etc/miniflux-admin-creds";
     config = {
       LISTEN_ADDR = "127.0.0.1:8080";
-      BASE_URL = "https://rss.tail1ec6c3.ts.net";
+      BASE_URL = "https://${tailnetFqdn}";
       LOG_FORMAT = "json";
     };
   };
+
+  services.nginx = {
+    enable = true;
+    recommendedProxySettings = true;
+    recommendedTlsSettings = true;
+    recommendedOptimisation = true;
+    recommendedGzipSettings = true;
+    virtualHosts.${tailnetFqdn} = {
+      forceSSL = true;
+      sslCertificate = "${certDir}/cert.pem";
+      sslCertificateKey = "${certDir}/key.pem";
+
+      locations."/" = {
+        proxyPass = "http://127.0.0.1:8080";
+        proxyWebsockets = true;
+      };
+    };
+  };
+
+  networking.firewall.interfaces.tailscale0.allowedTCPPorts = [ 443 ];
 
   system.stateVersion = "25.11";
 }
