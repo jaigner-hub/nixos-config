@@ -4,6 +4,9 @@ let
   tailnet = "tail1ec6c3.ts.net";
   tailnetFqdn = "rss.${tailnet}";
   certDir = "/var/lib/tailscale-cert";
+  b2Bucket = "Backup-jaigner-homelab";
+  b2Endpoint = "s3.us-east-005.backblazeb2.com";
+  backupDir = "/var/backups/miniflux";
 in
 {
   imports = [
@@ -80,6 +83,63 @@ in
       Persistent = true;
       RandomizedDelaySec = "1h";
     };
+  };
+
+  # Ensure the backup dir exists with the right ownership before either the
+  # dump or restic try to use it.
+  systemd.tmpfiles.rules = [
+    "d ${backupDir} 0750 postgres postgres -"
+  ];
+
+  # Daily pg_dump of the miniflux DB into the backup dir. Atomic rename so a
+  # half-written dump never replaces a good one. Runs as the `postgres` user
+  # so it can connect via the default peer-auth unix socket.
+  systemd.services.miniflux-db-backup = {
+    description = "Dump miniflux Postgres DB for offsite backup";
+    after = [ "postgresql.service" ];
+    requires = [ "postgresql.service" ];
+    serviceConfig = {
+      Type = "oneshot";
+      User = "postgres";
+      Group = "postgres";
+    };
+    script = ''
+      set -euo pipefail
+      ${config.services.postgresql.package}/bin/pg_dump \
+        --clean --no-owner --no-privileges miniflux \
+        | ${pkgs.gzip}/bin/gzip > ${backupDir}/miniflux.sql.gz.tmp
+      mv ${backupDir}/miniflux.sql.gz.tmp ${backupDir}/miniflux.sql.gz
+    '';
+  };
+
+  systemd.timers.miniflux-db-backup = {
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnCalendar = "*-*-* 03:00:00";
+      Persistent = true;
+      RandomizedDelaySec = "30m";
+    };
+  };
+
+  # Daily encrypted restic snapshot of the dump dir to Backblaze B2.
+  # Runs roughly 90 minutes after the db-backup timer (same pattern as
+  # immich) so the dump is always fresh when restic sweeps it up.
+  services.restic.backups.rss = {
+    paths = [ backupDir ];
+    repository = "s3:https://${b2Endpoint}/${b2Bucket}/rss";
+    passwordFile = "/etc/restic/password";
+    environmentFile = "/etc/restic/b2.env";
+    initialize = true;
+    timerConfig = {
+      OnCalendar = "*-*-* 04:30:00";
+      Persistent = true;
+      RandomizedDelaySec = "1h";
+    };
+    pruneOpts = [
+      "--keep-daily 7"
+      "--keep-weekly 4"
+      "--keep-monthly 12"
+    ];
   };
 
   system.stateVersion = "25.11";
