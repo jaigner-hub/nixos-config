@@ -29,7 +29,7 @@ in
   };
 
   fileSystems.${dataDir} = {
-    device = "nass:/mnt/storage/immich";
+    device = "nass.tail1ec6c3.ts.net:/mnt/storage/immich";
     fsType = "nfs4";
     options = [
       "nofail"

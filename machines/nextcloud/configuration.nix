@@ -25,7 +25,7 @@ in
   };
 
   fileSystems."/mnt/nextcloud-data" = {
-    device = "nass:/mnt/storage/nextcloud";
+    device = "nass.tail1ec6c3.ts.net:/mnt/storage/nextcloud";
     fsType = "nfs4";
     options = [
       "nofail"
