@@ -60,7 +60,40 @@ in
           { targets = [ "localhost:8080" ]; }
         ];
       }
+      # prometheus-pve-exporter (below) is a blackbox-style exporter: each
+      # scrape targets a Proxmox host, but the request goes to the exporter
+      # which queries that host's API and returns pve_* metrics. The relabel
+      # swap moves the host into ?target= and rewrites __address__ to the
+      # local exporter. Dashboard 15983 expects these metrics.
+      {
+        job_name = "pve";
+        static_configs = [
+          { targets = [ "10.0.0.55" ]; }
+        ];
+        metrics_path = "/pve";
+        params = {
+          module = [ "default" ];
+          cluster = [ "1" ];
+          node = [ "1" ];
+        };
+        relabel_configs = [
+          { source_labels = [ "__address__" ]; target_label = "__param_target"; }
+          { source_labels = [ "__param_target" ]; target_label = "instance"; }
+          { target_label = "__address__"; replacement = "127.0.0.1:9221"; }
+        ];
+      }
     ];
+  };
+
+  # Proxmox metrics for dashboard 15983. The exporter talks to the Proxmox
+  # API via a PVEAuditor token; credentials live in
+  # /etc/prometheus-pve-exporter.yml (mode 0600 root:root), loaded via
+  # systemd LoadCredential so DynamicUser still applies. Provision:
+  #   sudo install -m 600 -o root -g root <src> /etc/prometheus-pve-exporter.yml
+  services.prometheus.exporters.pve = {
+    enable = true;
+    port = 9221;
+    configFile = "/etc/prometheus-pve-exporter.yml";
   };
 
   services.grafana = {
@@ -348,6 +381,13 @@ in
       title = "monitor: tailscale-cert failed";
     } "tailscale-cert.service";
   systemd.services.tailscale-cert.onFailure = [ "ntfy-failed-tailscale-cert.service" ];
+
+  systemd.services."ntfy-failed-pve-exporter" =
+    mkNtfyOnFailure {
+      topic = "homelab-warn";
+      title = "monitor: prometheus-pve-exporter failed";
+    } "prometheus-pve-exporter.service";
+  systemd.services.prometheus-pve-exporter.onFailure = [ "ntfy-failed-pve-exporter.service" ];
 
   system.stateVersion = "25.11";
 }
