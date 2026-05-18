@@ -28,6 +28,8 @@ in
     uid = 5001;
   };
 
+  homelab.waitForMagicDns.enable = true;
+
   fileSystems.${dataDir} = {
     device = "nass.tail1ec6c3.ts.net:/mnt/storage/immich";
     fsType = "nfs4";
@@ -36,6 +38,8 @@ in
       "x-systemd.automount"
       "x-systemd.device-timeout=10"
       "_netdev"
+      "x-systemd.requires=wait-for-tailscale-magicdns.service"
+      "x-systemd.after=wait-for-tailscale-magicdns.service"
     ];
   };
 

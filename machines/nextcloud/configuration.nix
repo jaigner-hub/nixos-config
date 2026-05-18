@@ -24,6 +24,8 @@ in
     uid = 5000;
   };
 
+  homelab.waitForMagicDns.enable = true;
+
   fileSystems."/mnt/nextcloud-data" = {
     device = "nass.tail1ec6c3.ts.net:/mnt/storage/nextcloud";
     fsType = "nfs4";
@@ -32,6 +34,8 @@ in
       "x-systemd.automount"
       "x-systemd.device-timeout=10"
       "_netdev"
+      "x-systemd.requires=wait-for-tailscale-magicdns.service"
+      "x-systemd.after=wait-for-tailscale-magicdns.service"
     ];
   };
 
