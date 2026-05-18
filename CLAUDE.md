@@ -29,6 +29,21 @@ Drives every host in the hive from one machine. Run from anywhere with `nix` ins
 
 Target hostnames default to the directory name (resolved via Tailscale MagicDNS). The `nas` directory targets the `nass` hostname — overridden in `flake.nix:targetHostFor` and mirrored in `scripts/deploy.sh:SSH_TARGET`. Add `--impure` if the working tree is dirty.
 
+### Proxmox hypervisor management
+
+The VMs above all run on a single Proxmox host at `10.0.0.55:8006`. Two things give visibility into it without web-UI clicking:
+
+- **Read-only metrics (always-on):** `prometheus-pve-exporter` on `monitor` scrapes the PVE API and feeds Prometheus / Grafana dashboard 15983. Use this for historical/at-a-glance memory & CPU. Token is `pve-exporter@pve!exporter` with `PVEAuditor`. See [[project-pve-exporter-perms]] memory for the auth quirk.
+- **Active management (token-gated):** `scripts/pve` wraps the PVE API using `~/.config/proxmox/credentials` (mode 600, never in repo). Token is `claude@pve!mgmt` with a custom `ClaudeMgmt` role: `VM.Audit, Sys.Audit, Datastore.Audit, VM.Config.Memory, VM.Config.CPU, VM.PowerMgmt, VM.Snapshot, VM.Snapshot.Rollback` on `/` — can resize memory/CPU, power-cycle, snapshot+rollback, but **cannot create/delete VMs, modify disks/network, or access the console.** Common usage:
+  - `scripts/pve list` — VM table with allocated vs used memory
+  - `scripts/pve config <vmid>` — full QEMU config of one VM
+  - `scripts/pve set-memory <vmid> <MB>` — change config (next boot)
+  - `scripts/pve power <vmid> <start|stop|shutdown|reboot>`
+  - `scripts/pve snapshot <vmid> <name> [description]`
+  - `scripts/pve api <METHOD> <path> [curl args]` — raw call
+
+Memory config changes are queued until the next VM start — `qm` does not hotplug memory on these VMs (no `balloon` set).
+
 #### Bootstrapping a new host
 
 First-time deploy requires a manual step because `colmena` needs `jeff` in `nix.settings.trusted-users` and passwordless `sudo` on the target, both of which only land *after* the new config is activated. Bootstrap:

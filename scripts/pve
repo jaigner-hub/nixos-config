@@ -1,0 +1,119 @@
+#!/usr/bin/env bash
+# pve — Proxmox VE API wrapper using the token in ~/.config/proxmox/credentials.
+#
+# Credentials file format (chmod 600):
+#   PVE_HOST=10.0.0.55:8006
+#   PVE_NODE=hypervisor
+#   PVE_TOKEN_ID=claude@pve!mgmt
+#   PVE_TOKEN_SECRET=<uuid-from-pveum>
+#   # Optional: PVE_FINGERPRINT=<sha256 of the server cert>  (informational; we use -k)
+#
+# Usage:
+#   pve list                                       # VM table: id, name, alloc, used, status
+#   pve config <vmid>                              # current config of one VM (qemu/lxc)
+#   pve set-memory <vmid> <MB>                     # change memory (snapshot first via --snap)
+#   pve power <vmid> <start|stop|shutdown|reboot>  # power management
+#   pve snapshot <vmid> <name> [description]       # take a snapshot
+#   pve api <METHOD> <path> [curl args...]         # raw API call, prints body
+
+set -euo pipefail
+
+CRED_FILE="${PVE_CRED_FILE:-$HOME/.config/proxmox/credentials}"
+
+load_creds() {
+  if [[ ! -r "$CRED_FILE" ]]; then
+    echo "pve: missing or unreadable credentials at $CRED_FILE" >&2
+    exit 1
+  fi
+  # shellcheck disable=SC1090
+  . "$CRED_FILE"
+  : "${PVE_HOST:?PVE_HOST not set in $CRED_FILE}"
+  : "${PVE_TOKEN_ID:?PVE_TOKEN_ID not set in $CRED_FILE}"
+  : "${PVE_TOKEN_SECRET:?PVE_TOKEN_SECRET not set in $CRED_FILE}"
+  PVE_NODE="${PVE_NODE:-hypervisor}"
+}
+
+api() {
+  local method="$1" path="$2"; shift 2
+  curl -sS -k -H "Authorization: PVEAPIToken=${PVE_TOKEN_ID}=${PVE_TOKEN_SECRET}" \
+    -X "$method" "https://${PVE_HOST}/api2/json${path}" "$@"
+}
+
+require_vmid() {
+  [[ "${1:-}" =~ ^[0-9]+$ ]] || { echo "pve: expected numeric vmid, got '${1:-}'" >&2; exit 2; }
+}
+
+cmd_list() {
+  load_creds
+  api GET "/cluster/resources?type=vm" | jq -r '
+    .data
+    | sort_by(.vmid)
+    | (["VMID","NAME","TYPE","STATUS","ALLOC_MB","USED_MB","UPTIME"] | @tsv),
+      (.[] | [
+        .vmid, .name, .type, .status,
+        ((.maxmem // 0) / 1048576 | floor),
+        ((.mem    // 0) / 1048576 | floor),
+        ((.uptime // 0))
+      ] | @tsv)
+  ' | column -t -s $'\t'
+}
+
+cmd_config() {
+  load_creds
+  require_vmid "${1:-}"
+  local type
+  type=$(api GET "/cluster/resources?type=vm" | jq -r --arg v "$1" '.data[] | select(.vmid == ($v|tonumber)) | .type')
+  [[ -n "$type" ]] || { echo "pve: vmid $1 not found" >&2; exit 2; }
+  api GET "/nodes/${PVE_NODE}/${type}/$1/config" | jq .
+}
+
+cmd_set_memory() {
+  load_creds
+  require_vmid "${1:-}"
+  [[ "${2:-}" =~ ^[0-9]+$ ]] || { echo "pve: expected numeric MB, got '${2:-}'" >&2; exit 2; }
+  local vmid="$1" mb="$2"
+  api PUT "/nodes/${PVE_NODE}/qemu/${vmid}/config" --data-urlencode "memory=${mb}" | jq .
+}
+
+cmd_power() {
+  load_creds
+  require_vmid "${1:-}"
+  local vmid="$1" verb="${2:-}"
+  case "$verb" in
+    start|stop|shutdown|reboot|suspend|resume) ;;
+    *) echo "pve: verb must be start|stop|shutdown|reboot|suspend|resume" >&2; exit 2 ;;
+  esac
+  api POST "/nodes/${PVE_NODE}/qemu/${vmid}/status/${verb}" | jq .
+}
+
+cmd_snapshot() {
+  load_creds
+  require_vmid "${1:-}"
+  local vmid="$1" snapname="${2:-}" desc="${3:-}"
+  [[ -n "$snapname" ]] || { echo "pve: snapshot name required" >&2; exit 2; }
+  local args=(--data-urlencode "snapname=${snapname}")
+  [[ -n "$desc" ]] && args+=(--data-urlencode "description=${desc}")
+  api POST "/nodes/${PVE_NODE}/qemu/${vmid}/snapshot" "${args[@]}" | jq .
+}
+
+cmd_api() {
+  load_creds
+  local method="${1:-}" path="${2:-}"
+  [[ -n "$method" && -n "$path" ]] || { echo "pve: usage: pve api METHOD /path [curl args...]" >&2; exit 2; }
+  shift 2
+  api "$method" "$path" "$@"
+  echo
+}
+
+case "${1:-help}" in
+  list)        shift; cmd_list "$@" ;;
+  config)      shift; cmd_config "$@" ;;
+  set-memory)  shift; cmd_set_memory "$@" ;;
+  power)       shift; cmd_power "$@" ;;
+  snapshot)    shift; cmd_snapshot "$@" ;;
+  api)         shift; cmd_api "$@" ;;
+  help|--help|-h|"")
+    sed -n '2,/^set -euo/p' "$0" | sed -n '/^#/p' | sed 's/^# \{0,1\}//'
+    ;;
+  *) echo "pve: unknown subcommand '$1' (try: pve help)" >&2; exit 2 ;;
+esac
