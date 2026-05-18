@@ -202,7 +202,15 @@ in
   fileSystems."/mnt/storage" = {
     device = "/mnt/hdd1:/mnt/hdd2";
     fsType = "fuse.mergerfs";
-    options = [ "nofail" "x-systemd.device-timeout=10" ];
+    # category.create=mfs (most free space) ignores the default
+    # existing-path heuristic and sends every new file to whichever branch
+    # has the most free space. Default epmfs left hdd2 at 80% while hdd1
+    # sat at 7% because most folder trees predated hdd1 being added.
+    options = [
+      "nofail"
+      "x-systemd.device-timeout=10"
+      "category.create=mfs"
+    ];
   };
 
   systemd.tmpfiles.rules = [
