@@ -53,6 +53,12 @@ in
         port = 53;
 
         upstream_dns = [
+          # Domain-specific upstream: route tailnet MagicDNS queries to the
+          # tailscale resolver. Without this, Go-based services like Alloy
+          # (which read /etc/resolv.conf directly and bypass NSS) cannot
+          # resolve sibling hosts like `monitor.tail1ec6c3.ts.net` even though
+          # CLI tools work fine via NSS → systemd-resolved → tailscale link.
+          "[/tail1ec6c3.ts.net/]100.100.100.100"
           "https://dns.quad9.net/dns-query"
           "https://1.1.1.1/dns-query"
         ];
