@@ -86,6 +86,62 @@ in
     ];
   };
 
+  # Centralized log aggregation. Promtail on every host (via common/promtail.nix)
+  # ships systemd journal here. Single-binary mode with filesystem storage —
+  # homelab scale, no need for microservices topology. 30-day retention matches
+  # Prometheus. Tailscale-only firewall keeps the unauthenticated HTTP endpoint
+  # internal.
+  services.loki = {
+    enable = true;
+    configuration = {
+      auth_enabled = false;
+
+      server = {
+        http_listen_address = "0.0.0.0";
+        http_listen_port = 3100;
+        grpc_listen_port = 9095;
+      };
+
+      common = {
+        ring.kvstore.store = "inmemory";
+        replication_factor = 1;
+        path_prefix = "/var/lib/loki";
+        storage.filesystem = {
+          chunks_directory = "/var/lib/loki/chunks";
+          rules_directory = "/var/lib/loki/rules";
+        };
+      };
+
+      schema_config.configs = [{
+        from = "2025-01-01";
+        store = "tsdb";
+        object_store = "filesystem";
+        schema = "v13";
+        index = {
+          prefix = "index_";
+          period = "24h";
+        };
+      }];
+
+      limits_config = {
+        retention_period = "720h";
+        reject_old_samples = true;
+        reject_old_samples_max_age = "168h";
+        allow_structured_metadata = true;
+      };
+
+      compactor = {
+        working_directory = "/var/lib/loki/compactor";
+        delete_request_store = "filesystem";
+        retention_enabled = true;
+        retention_delete_delay = "2h";
+        retention_delete_worker_count = 150;
+      };
+
+      analytics.reporting_enabled = false;
+    };
+  };
+
   # Proxmox metrics for dashboard 15983. The exporter talks to the Proxmox
   # API via a PVEAuditor token; credentials live in
   # /etc/prometheus-pve-exporter.yml (mode 0600 root:root), loaded via
@@ -154,7 +210,31 @@ in
           url = "http://localhost:9090";
           isDefault = true;
         }
+        {
+          name = "Loki";
+          type = "loki";
+          access = "proxy";
+          url = "http://localhost:3100";
+        }
       ];
+      # Dashboards committed in machines/monitor/dashboards/ get loaded into
+      # the "Homelab" folder on every Grafana start. They're read-only in the
+      # UI (Save changes will offer "Save as…"). Add new dashboards by
+      # dropping a .json file in that directory and rebuilding.
+      #
+      # Dashboard JSON references datasources by name (e.g. `"datasource":
+      # "Prometheus"`) rather than UID — Grafana auto-generates UIDs for
+      # provisioned datasources that lack an explicit one, and pinning the
+      # UID later would orphan dashboards (like the imported 15983) that
+      # captured the auto-generated value.
+      dashboards.settings.providers = [{
+        name = "homelab";
+        folder = "Homelab";
+        type = "file";
+        disableDeletion = true;
+        updateIntervalSeconds = 30;
+        options.path = "${./dashboards}";
+      }];
     };
   };
 
@@ -273,6 +353,14 @@ in
           alerts = [ { type = "ntfy"; } ];
         }
         {
+          name = "loki";
+          group = "internal";
+          url = "http://localhost:3100/ready";
+          interval = "1m";
+          conditions = [ "[STATUS] == 200" ];
+          alerts = [ { type = "ntfy"; } ];
+        }
+        {
           name = "ntfy";
           group = "internal";
           url = "https://nass.${tailnet}/v1/health";
@@ -316,8 +404,9 @@ in
   };
 
   # tailscale0 is trusted via common/base.nix (all ports open). Open 443 on
-  # tailnet for the Gatus web UI.
-  networking.firewall.interfaces.tailscale0.allowedTCPPorts = [ 443 ];
+  # tailnet for the Gatus web UI, and 3100 for Promtail clients on other hosts
+  # pushing logs to Loki.
+  networking.firewall.interfaces.tailscale0.allowedTCPPorts = [ 443 3100 ];
 
   # See `project_tailscale_cert.md` memory note: this must be started manually
   # the first time (`sudo systemctl start tailscale-cert`) before nginx will
@@ -397,6 +486,13 @@ in
       title = "monitor: prometheus-pve-exporter failed";
     } "prometheus-pve-exporter.service";
   systemd.services.prometheus-pve-exporter.onFailure = [ "ntfy-failed-pve-exporter.service" ];
+
+  systemd.services."ntfy-failed-loki" =
+    mkNtfyOnFailure {
+      topic = "homelab-warn";
+      title = "monitor: loki failed";
+    } "loki.service";
+  systemd.services.loki.onFailure = [ "ntfy-failed-loki.service" ];
 
   # Hypervisor memory pressure alert. Polls Prometheus once a minute for the
   # used/total RAM ratio on the Proxmox host; if 3 consecutive checks come
