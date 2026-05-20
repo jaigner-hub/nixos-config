@@ -1,7 +1,7 @@
 { config, pkgs, claude-code-nix, hostKey, ... }:
 
 {
-  imports = [ ./ntfy-notify.nix ./wait-for-magicdns.nix ./alloy.nix ];
+  imports = [ ./ntfy-notify.nix ./wait-for-magicdns.nix ./disk-health-monitor.nix ./alloy.nix ];
 
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
   nix.settings.trusted-users = [ "root" "jeff" ];

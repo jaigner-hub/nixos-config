@@ -213,6 +213,25 @@ in
     ];
   };
 
+  # Catches the failure mode from 2026-05-18 (hdd1 power-cable bump → drive
+  # vanished → mount went read-only → silent until nextcloud 502s). by-id
+  # paths survive SCSI re-enumeration (the drive came back as sdd, not sdb).
+  homelab.diskHealthMonitor = {
+    enable = true;
+    drives = [
+      {
+        label = "hdd1";
+        mountpoint = "/mnt/hdd1";
+        device = "/dev/disk/by-id/ata-ST24000DM001-3Y7103_ZXA0MYAH";
+      }
+      {
+        label = "hdd2";
+        mountpoint = "/mnt/hdd2";
+        device = "/dev/disk/by-id/ata-WDC_WD50NDZW-11BCSS1_WD-WXA2D95EF2T6";
+      }
+    ];
+  };
+
   systemd.tmpfiles.rules = [
     # jellyfin owns the root so putio-sync (running as jellyfin) can create
     # top-level media folders like Movies/, TV Shows/, etc. Mode 0755 keeps
