@@ -70,6 +70,16 @@ in
         path = "/mnt/storage";
         browseable = "yes";
         "read only" = "no";
+        # All SMB writes happen as jellyfin regardless of which UNIX user
+        # authenticated. Without this, files land owned by the connecting
+        # user (jeff) and jellyfin can't manage them. With it, jellyfin
+        # always owns the tree so direct-play, transcodes, and library scans
+        # never hit permission denials.
+        "force user" = "jellyfin";
+        "force group" = "jellyfin";
+        # Match jellyfin-owned defaults: dirs 755, files 644.
+        "create mask" = "0644";
+        "directory mask" = "0755";
       };
     };
   };
