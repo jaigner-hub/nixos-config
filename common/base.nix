@@ -26,6 +26,18 @@
   };
 
   networking.networkmanager.enable = true;
+  # Comcast's DHCPv6 hands the same /128 suffix to every VM on the Proxmox
+  # bridge (no prefix delegation), so the kernel's Duplicate Address Detection
+  # spams `DAD failed for address 2601:...::94a9` every renewal cycle. Don't
+  # disable IPv6 entirely — tailscale negotiates v6 direct tunnels and
+  # disabling v6 mid-flight leaves peers sending packets to dead endpoints
+  # (broke fleet connectivity 2026-05-19). Instead, tell the kernel to skip
+  # DAD: addresses get assigned without the check, the log noise stops, and
+  # tailscale's v6 path discovery keeps working.
+  boot.kernel.sysctl = {
+    "net.ipv6.conf.all.accept_dad" = 0;
+    "net.ipv6.conf.default.accept_dad" = 0;
+  };
 
   users.users.jeff = {
     isNormalUser = true;
