@@ -2,11 +2,12 @@
 # pve — Proxmox VE API wrapper using the token in ~/.config/proxmox/credentials.
 #
 # Credentials file format (chmod 600):
-#   PVE_HOST=10.0.0.55:8006
-#   PVE_NODE=hypervisor
 #   PVE_TOKEN_ID=claude@pve!mgmt
 #   PVE_TOKEN_SECRET=<uuid-from-pveum>
-#   # Optional: PVE_FINGERPRINT=<sha256 of the server cert>  (informational; we use -k)
+#   # Optional overrides (defaults shown):
+#   # PVE_HOST=hypervisor.tail1ec6c3.ts.net:8006
+#   # PVE_NODE=hypervisor
+#   # PVE_FINGERPRINT=<sha256 of the server cert>  (informational; we use -k)
 #
 # Usage:
 #   pve list                                       # VM table: id, name, alloc, used, status
@@ -27,9 +28,9 @@ load_creds() {
   fi
   # shellcheck disable=SC1090
   . "$CRED_FILE"
-  : "${PVE_HOST:?PVE_HOST not set in $CRED_FILE}"
   : "${PVE_TOKEN_ID:?PVE_TOKEN_ID not set in $CRED_FILE}"
   : "${PVE_TOKEN_SECRET:?PVE_TOKEN_SECRET not set in $CRED_FILE}"
+  PVE_HOST="${PVE_HOST:-hypervisor.tail1ec6c3.ts.net:8006}"
   PVE_NODE="${PVE_NODE:-hypervisor}"
 }
 
