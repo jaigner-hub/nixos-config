@@ -58,6 +58,23 @@ in
   # so version bumps activate without a manual restart.
   systemd.services.jellyfin.restartTriggers = [ sleepTimerPlugin ];
 
+  # Intel UHD 630 (Comet Lake gen 9.5) passed through from the Proxmox host
+  # for Jellyfin transcoding. Without this, Live TV from the HDHomeRun
+  # (1080i MPEG-2 OTA) gets software-transcoded at ~80% CPU per viewer; with
+  # it, ~15%. intel-media-driver is the iHD VAAPI driver; intel-compute-runtime
+  # is OpenCL (needed for HDR tone-mapping). Jellyfin UI must be set to
+  # **VAAPI** (not QSV) with device /dev/dri/renderD128 — QSV goes through
+  # Intel's oneVPL dispatcher (vpl-gpu-rt) which only supports 11th-gen+
+  # silicon, so on this 10th-gen box it fails with MFX_ERR_NOT_FOUND.
+  hardware.graphics = {
+    enable = true;
+    extraPackages = with pkgs; [
+      intel-media-driver
+      intel-compute-runtime
+    ];
+  };
+  users.users.jellyfin.extraGroups = [ "render" "video" ];
+
   services.samba = {
     enable = true;
     openFirewall = true;
