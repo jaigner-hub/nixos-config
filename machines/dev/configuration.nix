@@ -37,7 +37,14 @@
 
     mariadb.client
 
-    docker-compose
+    # Route `docker-compose` to the Compose v2 plugin. The standalone nixpkgs
+    # docker-compose drops builds to the legacy builder on this host, so
+    # Dockerfiles using BuildKit `RUN --mount=...` (zrag's docker/Dockerfile)
+    # fail with "the --mount option requires BuildKit". The `docker compose`
+    # plugin (from virtualisation.docker) drives BuildKit correctly; this
+    # wrapper keeps the `docker-compose` command name working for scripts and
+    # muscle memory while using it.
+    (writeShellScriptBin "docker-compose" ''exec docker compose "$@"'')
 
     gcc
     gnumake
