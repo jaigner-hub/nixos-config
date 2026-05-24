@@ -6,6 +6,16 @@
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
   nix.settings.trusted-users = [ "root" "jeff" ];
 
+  # Keep the Nix store from filling these small (28G) root disks. Frequent
+  # deploys pile up generations fast; weekly GC drops anything older than a
+  # week, and auto-optimise hardlink-dedups identical files on every build.
+  nix.gc = {
+    automatic = true;
+    dates = "weekly";
+    options = "--delete-older-than 7d";
+  };
+  nix.settings.auto-optimise-store = true;
+
   # Passwordless wheel so `colmena apply` can activate non-interactively.
   # Access is gated by key-only SSH + tailscale-only firewall.
   security.sudo.wheelNeedsPassword = false;

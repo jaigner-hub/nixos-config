@@ -277,6 +277,12 @@ in
     # stays in /var/lib (mutable).
     "d ${sleepTimerPluginDir} 0700 jellyfin jellyfin -"
     "L+ ${sleepTimerPluginDir}/Jellyfin.Plugin.SleepTimer.dll - - - - ${sleepTimerPlugin}/lib/Jellyfin.Plugin.SleepTimer.dll"
+    # Age out orphaned HLS transcode segments. Jellyfin clears these on a
+    # clean session end, but Live TV sessions that exit uncleanly leave GiBs
+    # of .ts files behind on the small (28G) root disk. `e` only cleans an
+    # existing dir's contents older than the age via systemd-tmpfiles-clean
+    # (daily) — an active transcode's fresh segments are never touched.
+    "e /var/cache/jellyfin/transcodes - - - 1d"
   ];
 
   systemd.services.putio-sync = {
