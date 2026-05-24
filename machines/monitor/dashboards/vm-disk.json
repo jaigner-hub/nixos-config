@@ -1,0 +1,242 @@
+{
+  "annotations": { "list": [] },
+  "description": "Local disk space per filesystem across the homelab, from node_exporter. Pseudo and network filesystems (tmpfs, overlay, nfs, etc.) are filtered out so each host shows only its real local storage. On nass the mergerfs union (/mnt/storage) and its backing drives (/mnt/hdd1, /mnt/hdd2) all appear as separate rows.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": "Prometheus",
+      "description": "Current disk usage per filesystem: 1 - avail/size (matches df's Use%, so ext4's ~5% root reserve reads as used). Green below 80%, red at 90% and above.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 80 },
+              { "color": "red", "value": 90 }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 0 },
+      "id": 1,
+      "options": {
+        "displayMode": "gradient",
+        "minVizHeight": 18,
+        "minVizWidth": 0,
+        "namePlacement": "left",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "valueMode": "color"
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "editorMode": "code",
+          "expr": "(1 - node_filesystem_avail_bytes{fstype!~\"tmpfs|ramfs|overlay|squashfs|devtmpfs|nsfs|autofs|fuse.lxcfs|fuse.portal|nfs4?|cifs|smbfs|efivarfs|mqueue|tracefs|iso9660\"} / node_filesystem_size_bytes{fstype!~\"tmpfs|ramfs|overlay|squashfs|devtmpfs|nsfs|autofs|fuse.lxcfs|fuse.portal|nfs4?|cifs|smbfs|efivarfs|mqueue|tracefs|iso9660\"}) * 100",
+          "legendFormat": "{{instance}} {{mountpoint}}",
+          "range": false,
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Disk space used — current",
+      "type": "bargauge"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Free space remaining per filesystem (avail bytes — what a non-root process can actually write). This is the runway: watch the small VMs, not the 26 TB nass union.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "blue", "value": null }]
+          },
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 0 },
+      "id": 2,
+      "options": {
+        "displayMode": "basic",
+        "minVizHeight": 18,
+        "minVizWidth": 0,
+        "namePlacement": "left",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "valueMode": "text"
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "editorMode": "code",
+          "expr": "node_filesystem_avail_bytes{fstype!~\"tmpfs|ramfs|overlay|squashfs|devtmpfs|nsfs|autofs|fuse.lxcfs|fuse.portal|nfs4?|cifs|smbfs|efivarfs|mqueue|tracefs|iso9660\"}",
+          "legendFormat": "{{instance}} {{mountpoint}}",
+          "range": false,
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Free space remaining — current",
+      "type": "bargauge"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Disk usage over time per filesystem. A steady climb toward 90% is your early warning to prune (old NixOS generations on /boot and /, media on nass) before something wedges.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 90 }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 10 },
+      "id": 3,
+      "options": {
+        "legend": {
+          "calcs": ["lastNotNull", "max"],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "editorMode": "code",
+          "expr": "(1 - node_filesystem_avail_bytes{fstype!~\"tmpfs|ramfs|overlay|squashfs|devtmpfs|nsfs|autofs|fuse.lxcfs|fuse.portal|nfs4?|cifs|smbfs|efivarfs|mqueue|tracefs|iso9660\"} / node_filesystem_size_bytes{fstype!~\"tmpfs|ramfs|overlay|squashfs|devtmpfs|nsfs|autofs|fuse.lxcfs|fuse.portal|nfs4?|cifs|smbfs|efivarfs|mqueue|tracefs|iso9660\"}) * 100",
+          "legendFormat": "{{instance}} {{mountpoint}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Disk usage over time",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Free space over time per filesystem. A line trending toward zero is the same fill-up as the panel above, in absolute terms — easier to eyeball how many days/GB of runway are left.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "min": 0,
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 20 },
+      "id": 4,
+      "options": {
+        "legend": {
+          "calcs": ["lastNotNull", "min"],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": { "mode": "multi", "sort": "asc" }
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "editorMode": "code",
+          "expr": "node_filesystem_avail_bytes{fstype!~\"tmpfs|ramfs|overlay|squashfs|devtmpfs|nsfs|autofs|fuse.lxcfs|fuse.portal|nfs4?|cifs|smbfs|efivarfs|mqueue|tracefs|iso9660\"}",
+          "legendFormat": "{{instance}} {{mountpoint}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Free space over time",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["homelab", "disk"],
+  "templating": { "list": [] },
+  "time": { "from": "now-7d", "to": "now" },
+  "timepicker": {},
+  "timezone": "",
+  "title": "Homelab VM Disk Space",
+  "uid": "homelab-vm-disk",
+  "version": 1,
+  "weekStart": ""
+}
