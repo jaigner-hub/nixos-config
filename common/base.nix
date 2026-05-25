@@ -16,6 +16,14 @@
   };
   nix.settings.auto-optimise-store = true;
 
+  # Weekly TRIM so blocks freed inside the guest are released back to the
+  # hypervisor's local-lvm thin pool. The QEMU disks are configured with
+  # discard=on (set on the Proxmox host, not here); without periodic fstrim the
+  # over-provisioned pool only ever grows and eventually hits 100%, at which
+  # point dm-thin errors all writes and every VM freezes with I/O errors — this
+  # took down the whole fleet on 2026-05-25.
+  services.fstrim.enable = true;
+
   # Passwordless wheel so `colmena apply` can activate non-interactively.
   # Access is gated by key-only SSH + tailscale-only firewall.
   security.sudo.wheelNeedsPassword = false;
