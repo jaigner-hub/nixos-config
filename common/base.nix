@@ -70,6 +70,11 @@
 
   services.openssh.enable = true;
 
+  # Mosh for resilient shells over roaming/flaky links (laptop suspend, phone
+  # tethering). Opens UDP 60000-61000; the session key is still exchanged over
+  # SSH first, so it's no more exposed than the already-open SSH port.
+  programs.mosh.enable = true;
+
   services.qemuGuest.enable = true;
 
   services.resolved.enable = true;
