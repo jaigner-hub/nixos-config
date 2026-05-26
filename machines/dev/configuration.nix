@@ -28,6 +28,7 @@
 
   environment.systemPackages = with pkgs; [
     neovim
+    gh
 
     python3
     python3Packages.pip
