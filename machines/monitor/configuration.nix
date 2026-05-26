@@ -16,10 +16,7 @@ let
     "vaultwarden:9100"
     "adguard:9100"
     "adguard2:9100"
-    "paperless:9100"
-    "immich:9100"
     "auth:9100"
-    "rss:9100"
     "10.0.0.55:9100"
   ];
   b2Bucket = "Backup-jaigner-homelab";
@@ -321,14 +318,6 @@ in
           alerts = [ { type = "ntfy"; } ];
         }
         {
-          name = "paperless";
-          group = "homelab";
-          url = "https://paperless.${tailnet}/";
-          interval = "1m";
-          conditions = [ "[STATUS] == 200" "[CERTIFICATE_EXPIRATION] > 168h" ];
-          alerts = [ { type = "ntfy"; } ];
-        }
-        {
           name = "jellyfin";
           group = "homelab";
           url = "http://nass:8096/health";
@@ -366,14 +355,6 @@ in
           url = "https://nass.${tailnet}/v1/health";
           interval = "1m";
           conditions = [ "[STATUS] == 200" "[BODY].healthy == true" ];
-          alerts = [ { type = "ntfy"; } ];
-        }
-        {
-          name = "rss";
-          group = "homelab";
-          url = "https://rss.${tailnet}/healthz";
-          interval = "1m";
-          conditions = [ "[STATUS] == 200" "[CERTIFICATE_EXPIRATION] > 168h" ];
           alerts = [ { type = "ntfy"; } ];
         }
       ];
