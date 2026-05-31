@@ -147,8 +147,12 @@ in
 
   # Daily encrypted backup of AdGuard state to B2. Stored under a separate
   # path from `adguard` so the two repos don't collide.
+  #
+  # Back up the real DynamicUser state dir, not the /var/lib/AdGuardHome
+  # symlink to it — restic stores a top-level symlink as a symlink rather
+  # than following it. See the adguard host for the full explanation.
   services.restic.backups.adguard = {
-    paths = [ "/var/lib/AdGuardHome" ];
+    paths = [ "/var/lib/private/AdGuardHome" ];
     repository = "s3:https://${b2Endpoint}/${b2Bucket}/adguard2";
     passwordFile = "/etc/restic/password";
     environmentFile = "/etc/restic/b2.env";

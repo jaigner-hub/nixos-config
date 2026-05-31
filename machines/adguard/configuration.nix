@@ -152,8 +152,12 @@ in
   # to B2. Tiny, but useful so a rebuild doesn't lose your blocklist tweaks
   # and query history. Secrets at /etc/restic/{password,b2.env}, see
   # vaultwarden config for the format.
+  #
+  # AdGuardHome runs under systemd DynamicUser/StateDirectory, so /var/lib/
+  # AdGuardHome is a symlink to private/AdGuardHome. restic stores a top-level
+  # symlink as a symlink (it does not follow it), so we back up the real path.
   services.restic.backups.adguard = {
-    paths = [ "/var/lib/AdGuardHome" ];
+    paths = [ "/var/lib/private/AdGuardHome" ];
     repository = "s3:https://${b2Endpoint}/${b2Bucket}/adguard";
     passwordFile = "/etc/restic/password";
     environmentFile = "/etc/restic/b2.env";
