@@ -44,24 +44,30 @@
   };
 
   networking.networkmanager.enable = true;
-  # Comcast's DHCPv6 hands the same /128 suffix to every VM on the Proxmox
-  # bridge (no prefix delegation), so Duplicate Address Detection sees a
-  # "conflict" and NetworkManager spams `DAD failed for address 2601:...::94a9`
-  # on every DHCPv6 renewal. Don't disable IPv6 entirely — tailscale negotiates
-  # v6 direct tunnels and disabling v6 mid-flight leaves peers sending packets
-  # to dead endpoints (broke fleet connectivity 2026-05-19). Just skip DAD.
+  # Comcast's DHCPv6 hands the same ::suffix to every VM on the Proxmox bridge
+  # (no prefix delegation), so the kernel's Duplicate Address Detection sees a
+  # sibling VM's identical address as a conflict and NetworkManager logs
+  # `dhcp6 (ens18): DAD failed for address 2601:...` on every boot and lease
+  # renewal — the single largest error source in Loki (100+ lines/boot/host).
+  # Disable DAD on the interface so the address binds without the check. Don't
+  # disable IPv6 entirely — tailscale negotiates v6 direct tunnels and yanking
+  # v6 mid-flight leaves peers talking to dead endpoints (broke fleet
+  # connectivity 2026-05-19).
   #
-  # The kernel sysctls alone don't work: NetworkManager resets the managed
-  # interface back to accept_dad=1 (its default ipv6.dad-timeout re-runs DAD),
-  # overriding all/default=0. So DAD also has to be disabled at the NM layer
-  # via a [connection] default — that's what actually silences the renewal
-  # spam (~26 "errors"/boot per host plus one on every lease renewal).
+  # This MUST be the per-interface key. `default.accept_dad` only seeds
+  # interfaces created *after* it is set, but ens18 already exists at boot with
+  # the compiled-in default of 1, so all/default=0 never actually disabled DAD
+  # on it. systemd re-applies per-interface sysctls via udev when the NIC
+  # appears (before NM runs DHCPv6), so the address is added with DAD already
+  # off. Every host is a Proxmox VM whose primary NIC is ens18.
+  #
+  # NB: there is no `ipv6.dad-timeout` NetworkManager connection property (only
+  # ipv4 has one), so the previous [connection] default was silently dropped as
+  # an "unknown key" and disabled nothing — verified in the NM logs fleet-wide.
   boot.kernel.sysctl = {
     "net.ipv6.conf.all.accept_dad" = 0;
     "net.ipv6.conf.default.accept_dad" = 0;
-  };
-  networking.networkmanager.connectionConfig = {
-    "ipv6.dad-timeout" = 0;
+    "net.ipv6.conf.ens18.accept_dad" = 0;
   };
 
   users.users.jeff = {
