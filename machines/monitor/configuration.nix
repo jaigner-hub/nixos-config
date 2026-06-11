@@ -26,6 +26,7 @@ in
   imports = [
     ../../common/base.nix
     ./hardware-configuration.nix
+    ./keygrip-etcd-witness.nix
   ];
 
   boot.loader.systemd-boot.enable = true;
@@ -382,6 +383,20 @@ in
         proxyWebsockets = true;
       };
     };
+  };
+
+  # `services.tailscale.enable` comes from common/base.nix; here we only add the
+  # auth-key bootstrap so a from-scratch redeploy re-advertises tag:keygrip
+  # automatically (the live node already carries the tag via the admin console).
+  # extraUpFlags is *only* consumed by the tailscaled-autoconnect unit, which
+  # exists only when authKeyFile is set — so both are required for the tag to
+  # reapply. The key is a reusable, tag-authorized auth key minted in the admin
+  # console and provisioned out-of-band (0600, root) like other secrets; it is
+  # not committed. autoconnect only fires when the node is logged out, so this
+  # is inert on the already-running monitor and matters only on rebootstrap.
+  services.tailscale = {
+    authKeyFile = "/etc/tailscale/authkey";
+    extraUpFlags = [ "--advertise-tags=tag:keygrip" ];
   };
 
   # tailscale0 is trusted via common/base.nix (all ports open). Open 443 on
