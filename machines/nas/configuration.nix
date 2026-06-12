@@ -82,6 +82,20 @@ in
       global = {
         "workgroup" = "WORKGROUP";
         "server string" = "nass";
+        # /mnt/storage is mergerfs (FUSE), which does NOT deliver inotify
+        # events. Samba's default `kernel change notify = yes` relies on
+        # inotify to tell SMB clients a directory changed, so files added or
+        # moved out-of-band (putio-sync, jellyfin, or another SMB session)
+        # never showed up until a reconnect/samba restart. `no` makes Samba
+        # poll for changes instead, which works on FUSE.
+        "kernel change notify" = "no";
+        # Leases/oplocks let clients cache directory metadata; combined with
+        # the broken notify above, moved files appeared to "revert" because
+        # the client trusted its stale cached listing. Disable so clients
+        # always re-read directory state from the server.
+        "smb2 leases" = "no";
+        "oplocks" = "no";
+        "level2 oplocks" = "no";
       };
       media = {
         path = "/mnt/storage";
