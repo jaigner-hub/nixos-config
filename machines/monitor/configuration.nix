@@ -27,6 +27,7 @@ in
     ../../common/base.nix
     ./hardware-configuration.nix
     ./keygrip-etcd-witness.nix
+    ./stash-witness.nix
   ];
 
   boot.loader.systemd-boot.enable = true;
