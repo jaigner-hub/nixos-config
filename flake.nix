@@ -15,7 +15,6 @@
         "nas"
         "dev"
         "monitor"
-        "nextcloud"
         "vaultwarden"
         "adguard"
         "adguard2"

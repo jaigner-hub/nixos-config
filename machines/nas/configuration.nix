@@ -115,16 +115,6 @@ in
     };
   };
 
-  users.groups.nextcloud = {
-    gid = 5000;
-  };
-  users.users.nextcloud = {
-    isSystemUser = true;
-    group = "nextcloud";
-    uid = 5000;
-    description = "Nextcloud data owner (NFS UID/GID parity)";
-  };
-
   users.groups.immich = {
     gid = 5001;
   };
@@ -142,7 +132,6 @@ in
   services.nfs.server = {
     enable = true;
     exports = ''
-      /mnt/storage/nextcloud 100.64.0.0/10(rw,sync,no_subtree_check,no_root_squash,fsid=1)
       /mnt/storage/immich    100.64.0.0/10(rw,sync,no_subtree_check,no_root_squash,fsid=2)
     '';
   };
@@ -279,7 +268,6 @@ in
     # the directory world-listable so filebrowser/nfs clients can traverse
     # it, but only jellyfin can create new entries at the root.
     "d /mnt/storage 0755 jellyfin jellyfin -"
-    "d /mnt/storage/nextcloud 0700 nextcloud nextcloud -"
     "d /mnt/storage/immich 0700 immich immich -"
     # Writable drop-zone for filebrowser. /mnt/storage itself is owned by
     # jellyfin, so filebrowser can list it but not create files there —
@@ -431,34 +419,7 @@ in
     };
   };
 
-  # Daily encrypted backup of Nextcloud data (files + nightly DB dump) to B2.
-  # The DB dump is produced on the nextcloud host's nextcloud-db-backup timer
-  # at 03:00 into /mnt/storage/nextcloud/.db-backup/, so this fires at 04:00
-  # to ensure the dump is captured in the same snapshot.
-  #
-  # Backing up here (where the files live) avoids pulling all Nextcloud data
-  # back over NFS just to ship it offsite.
-  #
-  # Secrets at /etc/restic/{password,b2.env}, same format as on vaultwarden.
-  services.restic.backups.nextcloud = {
-    paths = [ "/mnt/storage/nextcloud" ];
-    repository = "s3:https://${b2Endpoint}/${b2Bucket}/nextcloud";
-    passwordFile = "/etc/restic/password";
-    environmentFile = "/etc/restic/b2.env";
-    initialize = true;
-    timerConfig = {
-      OnCalendar = "*-*-* 04:00:00";
-      Persistent = true;
-      RandomizedDelaySec = "30m";
-    };
-    pruneOpts = [
-      "--keep-daily 7"
-      "--keep-weekly 4"
-      "--keep-monthly 12"
-    ];
-  };
-
-  # Same pattern as nextcloud: the immich host dumps its Postgres DB into
+  # Same pattern the nextcloud host used to follow: the immich host dumps its Postgres DB into
   # /mnt/storage/immich/.db-backup/ at 03:00, and this picks it up an hour
   # later alongside the originals + ML data. Photo libraries can grow large
   # — keep an eye on B2 spend; tighten pruneOpts if cost becomes an issue.
@@ -508,7 +469,7 @@ in
   # Daily encrypted backup of filebrowser state (BoltDB at
   # /var/lib/filebrowser/database.db, which holds the admin user record
   # and all generated share links). Reuses the restic password + B2
-  # env file already in place for the nextcloud/immich backups.
+  # env file already in place for the immich backup.
   services.restic.backups.filebrowser = {
     paths = [ "/var/lib/filebrowser" ];
     repository = "s3:https://${b2Endpoint}/${b2Bucket}/filebrowser";
@@ -546,13 +507,6 @@ in
       title = "nas: jellyfin EPG refresh failed";
     } "jellyfin-epg-update.service";
   systemd.services.jellyfin-epg-update.onFailure = [ "ntfy-failed-jellyfin-epg-update.service" ];
-
-  systemd.services."ntfy-failed-restic-nextcloud" =
-    mkNtfyOnFailure {
-      topic = "homelab-critical";
-      title = "nas: restic nextcloud backup failed";
-    } "restic-backups-nextcloud.service";
-  systemd.services.restic-backups-nextcloud.onFailure = [ "ntfy-failed-restic-nextcloud.service" ];
 
   systemd.services."ntfy-failed-restic-immich" =
     mkNtfyOnFailure {

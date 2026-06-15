@@ -12,7 +12,6 @@ let
     "monitor:9100"
     "nass:9100"
     "dev:9100"
-    "nextcloud:9100"
     "vaultwarden:9100"
     "adguard:9100"
     "adguard2:9100"
@@ -309,14 +308,6 @@ in
           url = "https://vaultwarden.${tailnet}/alive";
           interval = "1m";
           conditions = [ "[STATUS] == 200" "[CERTIFICATE_EXPIRATION] > 168h" ];
-          alerts = [ { type = "ntfy"; } ];
-        }
-        {
-          name = "nextcloud";
-          group = "homelab";
-          url = "http://nextcloud/status.php";
-          interval = "1m";
-          conditions = [ "[STATUS] == 200" "[BODY].installed == true" ];
           alerts = [ { type = "ntfy"; } ];
         }
         {
