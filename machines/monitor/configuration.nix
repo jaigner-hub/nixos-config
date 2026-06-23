@@ -26,6 +26,7 @@ in
     ../../common/base.nix
     ./hardware-configuration.nix
     ./keygrip-etcd-witness.nix
+    ./keygrip-app-etcd-witness.nix
     ./stash-witness.nix
     ./stash-witness-keygrip.nix
   ];
