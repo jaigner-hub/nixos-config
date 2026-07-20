@@ -35,7 +35,7 @@
     python3Packages.pip
     python3Packages.virtualenv
 
-    nodejs_20
+    nodejs_22
 
     mariadb.client
 
