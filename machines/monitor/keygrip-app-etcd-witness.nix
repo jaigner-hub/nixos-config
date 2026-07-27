@@ -9,8 +9,9 @@
 #   - member    : monitor-app
 # services.etcd is single-instance (the dev witness owns it), so this runs as a custom systemd unit.
 #
-# Keep IN SYNC with the Ansible side (keygrip: group_vars/appservers/vars.yml): cluster token, member
-# list, the isolated ports, and the relaxed WAN timeouts. Addresses are tailnet IPs.
+# Keep IN SYNC with the Ansible side (keygrip: group_vars/appservers/vars.yml + the postgres_ha role
+# defaults): cluster token, member list, the isolated ports, the relaxed WAN timeouts, and the
+# auto-compaction settings. Addresses are tailnet IPs.
 #
 # Prereqs: monitor is tag:keygrip on the tailnet, and the tailnet ACL allows tag:keygrip <-> tag:keygrip
 # on 2381,2382 (in addition to the dev cluster's 2379,2380). To enable: add this to the imports in
@@ -38,6 +39,15 @@
       ETCD_HEARTBEAT_INTERVAL = "250";   # == etcd_heartbeat_ms
       ETCD_ELECTION_TIMEOUT = "2500";    # == etcd_election_ms
       ETCD_ENABLE_V2 = "false";
+      # Discard revision history older than 1h. WITHOUT this, etcd keeps every
+      # revision forever: on 2026-07-27 this cluster was found at 749 MB of its
+      # 2 GiB quota, ~7 weeks from NOSPACE — at which point etcd goes read-only,
+      # Patroni cannot refresh the leader lock, and BOTH the keygrip and keycloak
+      # databases go down. Compaction is per-member, so the witness needs it in
+      # its own config; the pair gets the same values from the Ansible side.
+      # == etcd_auto_compaction_mode / etcd_auto_compaction_retention
+      ETCD_AUTO_COMPACTION_MODE = "periodic";
+      ETCD_AUTO_COMPACTION_RETENTION = "1h";
     };
     serviceConfig = {
       ExecStart = "${pkgs.etcd}/bin/etcd";
