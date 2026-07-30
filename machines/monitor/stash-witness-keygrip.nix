@@ -29,8 +29,13 @@
 
   systemd.services.stash-witness-keygrip = {
     description = "stash secrets-manager witness — keygrip cluster (vote-only, sealed)";
-    after = [ "network-online.target" "tailscaled.service" ];
-    wants = [ "network-online.target" ];
+    # wait-for-tailnet-ip: `stash server` recovers -listen 100.109.229.12:8201
+    # from cluster.json and binds it explicitly, so it loses the same boot race
+    # the etcd witness does — first start 2026-07-29 died with `bind: cannot
+    # assign requested address`. `wants`, not `requires`: a failed gate must not
+    # strand the witness, the restart loop is still the backstop.
+    after = [ "network-online.target" "tailscaled.service" "wait-for-tailnet-ip.service" ];
+    wants = [ "network-online.target" "wait-for-tailnet-ip.service" ];
     wantedBy = [ "multi-user.target" ];
     serviceConfig = {
       ExecStart = "/opt/stash/stash server -data /var/lib/stash-keygrip";

@@ -36,6 +36,14 @@ in
 
   networking.hostName = "monitor";
 
+  # The keygrip etcd + stash witnesses bind this box's tailnet address explicitly,
+  # so they must not start before the kernel has it on tailscale0 (see
+  # common/wait-for-tailnet-ip.nix — both lost that race on the 2026-07-29 boot).
+  homelab.waitForTailnetIp = {
+    enable = true;
+    address = "100.109.229.12";
+  };
+
   services.prometheus = {
     enable = true;
     port = 9090;

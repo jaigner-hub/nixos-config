@@ -22,8 +22,13 @@
 
   systemd.services.etcd-keygrip-app = {
     description = "etcd witness — keygrip appservers HA Postgres cluster (vote-only, isolated)";
-    after = [ "network-online.target" "tailscaled.service" ];
-    wants = [ "network-online.target" ];
+    # wait-for-tailnet-ip: this unit binds 100.109.229.12 explicitly, and
+    # tailscaled being active does NOT mean the address is on tailscale0 yet.
+    # Without the gate the first start at boot dies with `bind: cannot assign
+    # requested address` (observed 2026-07-29) and the witness vote only returns
+    # on the 5s restart. `wants`, not `requires` — see common/wait-for-tailnet-ip.nix.
+    after = [ "network-online.target" "tailscaled.service" "wait-for-tailnet-ip.service" ];
+    wants = [ "network-online.target" "wait-for-tailnet-ip.service" ];
     wantedBy = [ "multi-user.target" ];
     environment = {
       ETCD_NAME = "monitor-app";
@@ -50,7 +55,16 @@
       ETCD_AUTO_COMPACTION_RETENTION = "1h";
     };
     serviceConfig = {
-      ExecStart = "${pkgs.etcd}/bin/etcd";
+      # PIN THE MINOR to match the pair. The two data nodes run the etcd image
+      # pinned in the keygrip repo (postgres_ha role: quay.io/coreos/etcd:v3.5.16),
+      # so `pkgs.etcd` — an unpinned nixpkgs-unstable follow — silently drifted
+      # this witness to 3.6.13 (found 2026-07-29: cluster running mixed 3.6/3.5
+      # with the cluster version held at 3.5.0). etcd supports at most ONE minor
+      # of skew, and only transiently during a rolling upgrade; the next nixpkgs
+      # bump would have put the witness two minors ahead, which is unsupported
+      # and would break it with no change on our side. Bump this deliberately,
+      # together with etcd_image in the keygrip repo — never by flake update.
+      ExecStart = "${pkgs.etcd_3_5}/bin/etcd";
       Restart = "on-failure";
       RestartSec = "5";
       StateDirectory = "etcd-keygrip-app";   # creates/owns /var/lib/etcd-keygrip-app
