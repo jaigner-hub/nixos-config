@@ -66,6 +66,24 @@
       HEARTBEAT_INTERVAL = "250";
       ELECTION_TIMEOUT   = "2500";
       ENABLE_V2          = "false";
+
+      # Discard revision history older than 1h. Patroni rewrites its leader key
+      # every loop_wait (3s here) and NEVER compacts, so with no compaction the
+      # keyspace grows without bound: on 2026-07-29 this cluster held 8 keys
+      # totalling 356 KB of live data inside a 1.1 GB file — 99.97% dead
+      # revisions, against a 2.1 GB quota. At the quota etcd raises NOSPACE and
+      # goes READ-ONLY, at which point Patroni cannot refresh the leader lock and
+      # the Postgres cluster behind it goes down. Compacted + defragged by hand
+      # that day (1.1 GB -> ~350 KB on all three members, no failover).
+      #
+      # ⚠️ INCOMPLETE ON ITS OWN. etcd pauses the periodic compactor on any
+      # member that is not the raft leader, so this setting only bites while the
+      # WITNESS leads — and it normally does not (vent-keygrip does). The two
+      # data nodes need the same two keys in THEIR etcd config, which is not
+      # managed from this repo. Until that happens the growth resumes and the
+      # cleanup has to be repeated. Same values as ./keygrip-app-etcd-witness.nix.
+      AUTO_COMPACTION_MODE      = "periodic";
+      AUTO_COMPACTION_RETENTION = "1h";
     };
   };
 }
