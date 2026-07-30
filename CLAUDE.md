@@ -44,6 +44,8 @@ The VMs above all run on a single Proxmox host at `10.0.0.55:8006`. Two things g
 
 Memory config changes are queued until the next VM start — `qm` does not hotplug memory on these VMs (no `balloon` set).
 
+**Auto-start on host boot.** Every live VM has `onboot=1` with a staggered `startup=` order, set 2026-07-29 after a power outage brought the hypervisor back with everything stopped: `adguard` + `adguard2` (order=1, up=30) → `nass` (order=2, up=15) → `vaultwarden`, `monitor`, `auth`, `dev` (order=3). DNS comes up first and gets 30s before the next group; the `up=` values are unconditional sleeps, not health checks. `nixos-template` (100) is deliberately left off. Changing `onboot`/`startup` needs `VM.Config.Options`, which the `ClaudeMgmt` role does **not** have — use `ssh root@hypervisor 'qm set <vmid> --onboot 1'` rather than `scripts/pve`.
+
 #### Bootstrapping a new host
 
 First-time deploy requires a manual step because `colmena` needs `jeff` in `nix.settings.trusted-users` and passwordless `sudo` on the target, both of which only land *after* the new config is activated. Bootstrap:
