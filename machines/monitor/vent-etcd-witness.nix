@@ -25,7 +25,7 @@
 #
 # To enable: add `./vent-etcd-witness.nix` to the `imports` list in this dir's
 # configuration.nix, then `nixos-rebuild switch` (or your colmena/flake apply) on monitor.
-{ ... }:
+{ pkgs, ... }:
 {
   # etcd peer (2380) + client (2379) — TAILNET ONLY.
   networking.firewall.interfaces."tailscale0".allowedTCPPorts = [ 2379 2380 ];
@@ -34,6 +34,18 @@
     enable = true;
     name = "monitor";
     dataDir = "/var/lib/etcd-keygrip";
+
+    # PIN THE MINOR to match the two data nodes. `services.etcd` defaults to
+    # `pkgs.etcd`, an unpinned nixpkgs-unstable follow, which had silently
+    # carried this witness to 3.6.13 while vent.dog and vent.dog2 both sit on
+    # 3.5.16 (measured 2026-07-29; cluster version and storage version were both
+    # still 3.5.0, which is the only reason the mixed cluster was working). etcd
+    # tolerates ONE minor of skew, and only transiently during a rolling
+    # upgrade — the next nixpkgs bump would have put this member two minors
+    # ahead of the pair, which is unsupported, with no change on our side to
+    # blame. Same pin as the keygrip witness in ./keygrip-app-etcd-witness.nix.
+    # Bump deliberately, alongside the pair — never via `nix flake update`.
+    package = pkgs.etcd_3_5;
 
     initialClusterToken = "keygrip-pgha";          # == pg_ha_etcd_token
     initialClusterState = "new";
