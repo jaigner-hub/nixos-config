@@ -44,7 +44,18 @@ The VMs above all run on a single Proxmox host at `10.0.0.55:8006`. Two things g
 
 Memory config changes are queued until the next VM start — `qm` does not hotplug memory on these VMs (no `balloon` set).
 
-**Auto-start on host boot.** Every live VM has `onboot=1` with a staggered `startup=` order, set 2026-07-29 after a power outage brought the hypervisor back with everything stopped: `adguard` + `adguard2` (order=1, up=30) → `nass` (order=2, up=15) → `vaultwarden`, `monitor`, `auth`, `dev` (order=3). DNS comes up first and gets 30s before the next group; the `up=` values are unconditional sleeps, not health checks. `nixos-template` (100) is deliberately left off. Changing `onboot`/`startup` needs `VM.Config.Options`, which the `ClaudeMgmt` role does **not** have — use `ssh root@hypervisor 'qm set <vmid> --onboot 1'` rather than `scripts/pve`.
+**Auto-start on host boot.** Every live VM has `onboot=1` with a staggered `startup=` order, set 2026-07-29 after a power outage brought the hypervisor back with everything stopped:
+
+| VMID | Guest | `startup=` |
+|---|---|---|
+| 104 | `adguard` | `order=1,up=30` |
+| 105 | `adguard2` | `order=1,up=5` |
+| 101 | `nass` | `order=2,up=15` |
+| 103, 106, 108, 111 | `vaultwarden`, `monitor`, `auth`, `dev` | `order=3` |
+
+`up=N` is a **per-guest** unconditional sleep, not per-order-group and not a health check: `pve-guests` starts one guest, sleeps its `up=` value, then moves to the next. So the real boot sequence is adguard → 30s → adguard2 → 5s → nass → 15s → the order=3 four together. DNS is serving before anything that needs to resolve names; `adguard2` only carries `up=5` because the first resolver already satisfies that.
+
+Verified by a live reboot on 2026-07-29: hypervisor SSH at t+94s, 7/7 guests running at t+171s, no failed units fleet-wide. `nixos-template` (100) is deliberately excluded. Changing `onboot`/`startup` needs `VM.Config.Options`, which the `ClaudeMgmt` role does **not** have — use `ssh root@hypervisor 'qm set <vmid> --onboot 1'` rather than `scripts/pve`.
 
 #### Bootstrapping a new host
 
