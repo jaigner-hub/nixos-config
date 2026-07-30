@@ -1,5 +1,5 @@
 # stash WITNESS — vote-only 3rd member of the stash secrets-manager cluster
-# (~/Projects/stash). Mirrors the etcd witness (keygrip-etcd-witness.nix): it
+# (~/Projects/stash). Mirrors the etcd witness (vent-etcd-witness.nix): it
 # holds NO unseal key, so it is SEALED — it replicates only ciphertext, can
 # never read a secret, and if it ever wins a leader election it immediately
 # hands leadership back to a keyed node (vent.dog / vent.dog2). Its vote only
@@ -25,8 +25,15 @@
 
   systemd.services.stash-witness = {
     description = "stash secrets-manager witness (vote-only, sealed)";
-    after = [ "network-online.target" "tailscaled.service" ];
-    wants = [ "network-online.target" ];
+    # wait-for-tailnet-ip: `stash server` recovers -listen 100.109.229.12:8200
+    # from /var/lib/stash and binds it explicitly, so `After=tailscaled.service`
+    # is not enough — the daemon is active before the kernel has the address on
+    # tailscale0. First start on the 2026-07-29 boot died with `listen tcp
+    # 100.109.229.12:8200: bind: cannot assign requested address` and the vote
+    # only came back on the 5s restart. `wants`, not `requires`, so a failed
+    # gate can never strand the witness — see common/wait-for-tailnet-ip.nix.
+    after = [ "network-online.target" "tailscaled.service" "wait-for-tailnet-ip.service" ];
+    wants = [ "network-online.target" "wait-for-tailnet-ip.service" ];
     wantedBy = [ "multi-user.target" ];
     serviceConfig = {
       ExecStart = "/opt/stash/stash server -data /var/lib/stash";

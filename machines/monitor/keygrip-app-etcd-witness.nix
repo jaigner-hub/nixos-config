@@ -1,6 +1,7 @@
 # etcd WITNESS for the keygrip APPSERVERS HA Postgres cluster (keygrip1 + keygrip2).
 #
-# A SECOND, independent etcd witness alongside ./keygrip-etcd-witness.nix (the vent.dog cluster).
+# A SECOND, independent etcd witness alongside ./vent-etcd-witness.nix (the vent.dog pair's cluster;
+# that file was called keygrip-etcd-witness.nix until 2026-07-29 — its name, not this one, was wrong).
 # Vote-only 3rd member: holds no Postgres, never promotable; makes failover safe on the two-data-node
 # appservers cluster. Fully isolated from the dev witness so they never collide on this one box:
 #   - ports     : 2381/2382   (dev witness uses 2379/2380)
