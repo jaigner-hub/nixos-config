@@ -290,6 +290,9 @@ in
 
   systemd.services.putio-sync = {
     description = "put.io sync";
+    # Timer-driven oneshot: don't let nixos-rebuild/colmena SIGTERM an
+    # in-flight download; the next timer fire picks up new code anyway.
+    restartIfChanged = false;
     serviceConfig = {
       ExecStart = "${pythonWithPackages}/bin/python3 ${syncScript}/bin/putio-sync";
       Type = "oneshot";
