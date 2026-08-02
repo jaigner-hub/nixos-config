@@ -3,6 +3,7 @@
 let
   pythonWithPackages = pkgs.python3.withPackages (ps: with ps; [
     requests
+    guessit
   ]);
   syncScript = pkgs.writeScriptBin "putio-sync" (builtins.readFile ../../scripts/putio-sync.py);
   jellyfinTvDataScript = pkgs.writeScriptBin "gen-jellyfin-tv-data"

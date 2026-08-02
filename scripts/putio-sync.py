@@ -12,9 +12,20 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
 
+try:
+    from guessit import guessit
+except ImportError:
+    guessit = None
+
 CONFIG_PATH = os.path.expanduser("~/.config/putio-sync/config.json")
 DEFAULT_DEST = "/mnt/storage"
+DEFAULT_LIBRARY_ROOT = "chill.institute"
 API_BASE = "https://api.put.io/v2"
+
+# put.io folders that are just buckets, not release names: strip them so a
+# release re-roots cleanly under Movies/ or Shows/ regardless of where it
+# landed on the put.io side.
+CONTAINER_DIRS = {"chill.institute", "movies", "shows", "tv", "unsorted"}
 
 
 def load_config(token_override=None):
@@ -112,6 +123,49 @@ def download_file(url, local_path):
     return result.returncode == 0
 
 
+def organize_rel_path(rel_path, library_root):
+    """Route a raw put.io path into Movies/, Shows/, or Unsorted/ under library_root.
+
+    Classification is per-file: guessit reads cues from the whole path
+    (folder names included), so a sample.mkv inside a movie folder or a
+    subtitle inside a season pack follows its release. Anything without an
+    episode marker or a year lands in Unsorted/ rather than being misfiled.
+    """
+    parts = [p for p in rel_path.split(os.sep) if p]
+    while len(parts) > 1 and parts[0].lower() in CONTAINER_DIRS:
+        parts.pop(0)
+    organic = os.path.join(*parts)
+    g = guessit(organic)
+    if g.get("type") == "episode":
+        if len(parts) > 1:
+            return os.path.join(library_root, "Shows", organic)
+        title = g.get("title")
+        if title:
+            return os.path.join(library_root, "Shows", str(title), organic)
+        return os.path.join(library_root, "Unsorted", organic)
+    if g.get("type") == "movie" and g.get("year"):
+        return os.path.join(library_root, "Movies", organic)
+    return os.path.join(library_root, "Unsorted", organic)
+
+
+def trigger_jellyfin_refresh():
+    """Kick a Jellyfin library scan so new files show up without waiting."""
+    api_key = os.environ.get("JELLYFIN_API_KEY")
+    if not api_key:
+        return
+    url = os.environ.get("JELLYFIN_URL", "http://localhost:8096")
+    try:
+        resp = requests.post(
+            f"{url}/Library/Refresh",
+            headers={"X-Emby-Token": api_key},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        print("Triggered Jellyfin library refresh.")
+    except requests.exceptions.RequestException as e:
+        print(f"WARNING: Jellyfin refresh failed: {e}")
+
+
 def format_size(size_bytes):
     for unit in ("B", "KB", "MB", "GB", "TB"):
         if abs(size_bytes) < 1024:
@@ -126,7 +180,16 @@ def main():
     parser.add_argument("--seed", action="store_true", help="Seed manifest by matching existing local files to put.io by size")
     parser.add_argument("--dest", default=DEFAULT_DEST, help=f"Download destination (default: {DEFAULT_DEST})")
     parser.add_argument("--token", help="OAuth token (overrides config file)")
+    parser.add_argument("--library-root", default=DEFAULT_LIBRARY_ROOT,
+                        help=f"Subdir of dest holding Movies/Shows/Unsorted (default: {DEFAULT_LIBRARY_ROOT})")
+    parser.add_argument("--no-organize", action="store_true",
+                        help="Mirror put.io paths instead of sorting into Movies/Shows/Unsorted")
     args = parser.parse_args()
+
+    organize = not args.no_organize
+    if organize and guessit is None:
+        print("WARNING: guessit not installed, falling back to mirroring put.io paths.")
+        organize = False
 
     config = load_config(args.token)
     token = config["oauth_token"]
@@ -212,7 +275,12 @@ def main():
         for f in new_files:
             size = f.get("size", 0)
             total_size += size
-            print(f"  {f['_rel_path']} ({format_size(size)})")
+            if organize:
+                dest_rel = organize_rel_path(f["_rel_path"], args.library_root)
+                print(f"  {f['_rel_path']} ({format_size(size)})")
+                print(f"    -> {dest_rel}")
+            else:
+                print(f"  {f['_rel_path']} ({format_size(size)})")
         print(f"\nTotal: {format_size(total_size)}")
         return
 
@@ -220,11 +288,13 @@ def main():
     failed = 0
     for i, f in enumerate(new_files, 1):
         file_id = f["id"]
-        rel_path = f["_rel_path"]
+        rel_path = organize_rel_path(f["_rel_path"], args.library_root) if organize else f["_rel_path"]
         size = f.get("size", 0)
         local_path = os.path.join(args.dest, rel_path)
 
-        print(f"\n[{i}/{len(new_files)}] {rel_path} ({format_size(size)})")
+        print(f"\n[{i}/{len(new_files)}] {f['_rel_path']} ({format_size(size)})")
+        if rel_path != f["_rel_path"]:
+            print(f"  -> {rel_path}")
 
         try:
             url = get_download_url(file_id, token)
@@ -250,6 +320,9 @@ def main():
         else:
             print(f"  FAILED")
             failed += 1
+
+    if downloaded:
+        trigger_jellyfin_refresh()
 
     print(f"\nDone. Downloaded: {downloaded}, Failed: {failed}, Skipped: {skipped}")
 

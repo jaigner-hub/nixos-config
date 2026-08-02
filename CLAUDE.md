@@ -66,7 +66,7 @@ First-time deploy requires a manual step because `colmena` needs `jeff` in `nix.
 3. After it comes back up, `scripts/deploy.sh <host>` works going forward.
 4. If the host runs `services.cloudflared`: the first deploy will activate but the `cloudflared-tunnel-<uuid>` unit will fail until you `sudo mkdir -p /etc/cloudflared` and `scp` the tunnel credentials JSON into `/etc/cloudflared/<uuid>.json` (mode `0600`, owner `root:root` — the unit uses `DynamicUser=true` + `LoadCredential=`, so root reads the file before privilege drop), then `systemctl restart` the unit. See `docs/superpowers/plans/2026-05-14-cloudflare-tunnel.md` for the full bootstrap.
 
-`putio-sync.py` (run on `nas` only) supports `--dry-run` and `--seed` flags; it reads its token from `/etc/putio-sync.env` (via the systemd unit), `PUTIO_TOKEN`, or `~/.config/putio-sync/config.json`.
+`putio-sync.py` (run on `nas` only) supports `--dry-run` and `--seed` flags; it reads its token from `/etc/putio-sync.env` (via the systemd unit), `PUTIO_TOKEN`, or `~/.config/putio-sync/config.json`. Downloads are auto-sorted per-file via guessit into `chill.institute/{Movies,Shows,Unsorted}` (the Jellyfin library roots) — episode marker → Shows, year-but-no-episode → Movies, neither → Unsorted for manual triage. `--no-organize` restores the old mirror-put.io-paths behavior. After a run that downloaded anything it POSTs `/Library/Refresh` to Jellyfin using `JELLYFIN_API_KEY` from `/etc/putio-sync.env` (silently skipped if unset; key is created in Jellyfin Dashboard → API Keys and provisioned out-of-band).
 
 ## Architecture
 
