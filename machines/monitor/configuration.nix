@@ -360,6 +360,75 @@ in
           conditions = [ "[STATUS] == 200" "[BODY].healthy == true" ];
           alerts = [ { type = "ntfy"; } ];
         }
+
+        # --- keygrip (external watcher for the app tier in nyc3) ---
+        # This box is the only watcher OUTSIDE keygrip's failure domain: the tier's own
+        # Prometheus/Alertmanager/ntfy all run on keygrip1, so "keygrip1 died" and "a nyc3
+        # event took both boxes" are invisible from inside it, and its peer-heartbeat backstop
+        # emails via Resend, which drops mail silently (suppression list). Alerts here go
+        # through nass's ntfy — no shared infrastructure with what is being watched.
+        # First four are the public surface through Cloudflare; /readyz is the DB-checking
+        # probe (during the 2026-07-26 outage /healthz stayed green while the app was down).
+        {
+          name = "app-healthz";
+          group = "keygrip";
+          url = "https://app.keygrip.ai/healthz";
+          interval = "1m";
+          conditions = [ "[STATUS] == 200" "[CERTIFICATE_EXPIRATION] > 168h" ];
+          alerts = [ { type = "ntfy"; } ];
+        }
+        {
+          name = "app-readyz";
+          group = "keygrip";
+          url = "https://app.keygrip.ai/readyz";
+          interval = "1m";
+          conditions = [ "[STATUS] == 200" ];
+          alerts = [ { type = "ntfy"; } ];
+        }
+        {
+          name = "keycloak";
+          group = "keygrip";
+          url = "https://id.keygrip.ai/realms/keygrip";
+          interval = "1m";
+          conditions = [ "[STATUS] == 200" "[CERTIFICATE_EXPIRATION] > 168h" ];
+          alerts = [ { type = "ntfy"; } ];
+        }
+        {
+          name = "portal";
+          group = "keygrip";
+          url = "https://portal.keygrip.ai/healthz";
+          interval = "1m";
+          conditions = [ "[STATUS] == 200" ];
+          alerts = [ { type = "ntfy"; } ];
+        }
+        # Watcher-of-the-watcher: keygrip1's alerting chain probed over the tailnet.
+        # Prometheus/Alertmanager publish 9090/9093 on keygrip1's tailnet IP for exactly
+        # this probe (keygrip repo, roles/observability compose). ntfy rides Tailscale
+        # Serve :8446 — the same endpoint the phone subscribes to.
+        {
+          name = "keygrip1-prometheus";
+          group = "keygrip";
+          url = "http://keygrip1:9090/-/healthy";
+          interval = "1m";
+          conditions = [ "[STATUS] == 200" ];
+          alerts = [ { type = "ntfy"; } ];
+        }
+        {
+          name = "keygrip1-alertmanager";
+          group = "keygrip";
+          url = "http://keygrip1:9093/-/healthy";
+          interval = "1m";
+          conditions = [ "[STATUS] == 200" ];
+          alerts = [ { type = "ntfy"; } ];
+        }
+        {
+          name = "keygrip1-ntfy";
+          group = "keygrip";
+          url = "https://keygrip1.${tailnet}:8446/v1/health";
+          interval = "1m";
+          conditions = [ "[STATUS] == 200" "[BODY].healthy == true" ];
+          alerts = [ { type = "ntfy"; } ];
+        }
       ];
     };
   };
