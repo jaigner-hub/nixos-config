@@ -19,7 +19,6 @@
         "adguard"
         "adguard2"
         "paperless"
-        "immich"
         "auth"
         "rss"
       ];

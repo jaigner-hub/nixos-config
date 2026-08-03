@@ -116,33 +116,7 @@ in
     };
   };
 
-  users.groups.immich = {
-    gid = 5001;
-  };
-  users.users.immich = {
-    isSystemUser = true;
-    group = "immich";
-    uid = 5001;
-    description = "Immich data owner (NFS UID/GID parity)";
-  };
-
-  # `fsid=` is required because /mnt/storage is mergerfs (FUSE), which
-  # doesn't expose a stable device ID for the kernel NFS server to use
-  # when generating filehandles. Numbers are arbitrary but must be unique
-  # and stable across reboots — never reuse a number for a different path.
-  services.nfs.server = {
-    enable = true;
-    exports = ''
-      /mnt/storage/immich    100.64.0.0/10(rw,sync,no_subtree_check,no_root_squash,fsid=2)
-    '';
-  };
-
-  services.nfs.settings = {
-    nfsd.vers3 = false;
-    nfsd.vers4 = true;
-  };
-
-  networking.firewall.interfaces.tailscale0.allowedTCPPorts = [ 2049 443 ];
+  networking.firewall.interfaces.tailscale0.allowedTCPPorts = [ 443 ];
 
   # Self-hosted ntfy. Moved here from `auth` after the Pocket-ID rollout —
   # Pocket-ID needs to own the root of `auth.tail1ec6c3.ts.net` for OIDC and
@@ -269,7 +243,6 @@ in
     # the directory world-listable so filebrowser/nfs clients can traverse
     # it, but only jellyfin can create new entries at the root.
     "d /mnt/storage 0755 jellyfin jellyfin -"
-    "d /mnt/storage/immich 0700 immich immich -"
     # Writable drop-zone for filebrowser. /mnt/storage itself is owned by
     # jellyfin, so filebrowser can list it but not create files there —
     # this gives it one subdirectory it owns for share-link use.
@@ -423,28 +396,6 @@ in
     };
   };
 
-  # Same pattern the nextcloud host used to follow: the immich host dumps its Postgres DB into
-  # /mnt/storage/immich/.db-backup/ at 03:00, and this picks it up an hour
-  # later alongside the originals + ML data. Photo libraries can grow large
-  # — keep an eye on B2 spend; tighten pruneOpts if cost becomes an issue.
-  services.restic.backups.immich = {
-    paths = [ "/mnt/storage/immich" ];
-    repository = "s3:https://${b2Endpoint}/${b2Bucket}/immich";
-    passwordFile = "/etc/restic/password";
-    environmentFile = "/etc/restic/b2.env";
-    initialize = true;
-    timerConfig = {
-      OnCalendar = "*-*-* 04:30:00";
-      Persistent = true;
-      RandomizedDelaySec = "30m";
-    };
-    pruneOpts = [
-      "--keep-daily 7"
-      "--keep-weekly 4"
-      "--keep-monthly 12"
-    ];
-  };
-
   # Daily encrypted backup of ntfy state (user.db with writer tokens).
   # Small file but recovery-critical — losing user.db invalidates every
   # writer token across the fleet, forcing a rotate-everywhere operation.
@@ -473,7 +424,7 @@ in
   # Daily encrypted backup of filebrowser state (BoltDB at
   # /var/lib/filebrowser/database.db, which holds the admin user record
   # and all generated share links). Reuses the restic password + B2
-  # env file already in place for the immich backup.
+  # env file shared by the backups on this host.
   services.restic.backups.filebrowser = {
     paths = [ "/var/lib/filebrowser" ];
     repository = "s3:https://${b2Endpoint}/${b2Bucket}/filebrowser";
@@ -511,13 +462,6 @@ in
       title = "nas: jellyfin EPG refresh failed";
     } "jellyfin-epg-update.service";
   systemd.services.jellyfin-epg-update.onFailure = [ "ntfy-failed-jellyfin-epg-update.service" ];
-
-  systemd.services."ntfy-failed-restic-immich" =
-    mkNtfyOnFailure {
-      topic = "homelab-critical";
-      title = "nas: restic immich backup failed";
-    } "restic-backups-immich.service";
-  systemd.services.restic-backups-immich.onFailure = [ "ntfy-failed-restic-immich.service" ];
 
   systemd.services."ntfy-failed-restic-filebrowser" =
     mkNtfyOnFailure {

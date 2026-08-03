@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository purpose
 
-Multi-machine NixOS flake managing a small homelab. Hosts: `nas`, `dev`, `monitor`, `vaultwarden`, `adguard`, `adguard2`, `paperless`, `immich`. All machines share `common/base.nix` and are wired up through `flake.nix` via a `mkSystem` helper. The same host list is exposed as a [Colmena](https://colmena.cli.rs/) hive for fleet-wide deploys.
+Multi-machine NixOS flake managing a small homelab. Hosts: `nas`, `dev`, `monitor`, `vaultwarden`, `adguard`, `adguard2`, `paperless`, `auth`, `rss`. All machines share `common/base.nix` and are wired up through `flake.nix` via a `mkSystem` helper. The same host list is exposed as a [Colmena](https://colmena.cli.rs/) hive for fleet-wide deploys.
 
 ## Common commands
 
@@ -78,7 +78,7 @@ First-time deploy requires a manual step because `colmena` needs `jeff` in `nix.
 
 ### Host-specific notes
 
-- `nas` — Jellyfin + Samba over a mergerfs union of `/mnt/hdd1` (21.8 TB) + `/mnt/hdd2` (4.5 TB) mounted at `/mnt/storage`. Also hosts `services.filebrowser` (public via cloudflared at `files.youtalklikeafag.com`), serves the Immich data directory over NFSv4 to that host on the tailnet, runs the `putio-sync` systemd timer every 15 minutes (secrets in `/etc/putio-sync.env`), and is the origin for daily restic backups of Immich, Filebrowser, and ntfy state to Backblaze B2. Also hosts self-hosted ntfy (`https://nass.tail1ec6c3.ts.net`) behind nginx + tailscale-cert, receiving systemd `OnFailure=` alerts from every host via `common/ntfy-notify.nix` plus uptime alerts from Gatus on `monitor` — three topics (`homelab-critical`/`-warn`/`-info`) with severity set per-subscription on the phone. Writer-token copies live at `/etc/ntfy-token` on every host and `/etc/gatus.env` on `monitor`. Hostname is `nass` (intentional, not a typo of the directory name).
+- `nas` — Jellyfin + Samba over a mergerfs union of `/mnt/hdd1` (21.8 TB) + `/mnt/hdd2` (4.5 TB) mounted at `/mnt/storage`. Also hosts `services.filebrowser` (public via cloudflared at `files.youtalklikeafag.com`), runs the `putio-sync` systemd timer every 15 minutes (secrets in `/etc/putio-sync.env`), and is the origin for daily restic backups of Filebrowser and ntfy state to Backblaze B2. Also hosts self-hosted ntfy (`https://nass.tail1ec6c3.ts.net`) behind nginx + tailscale-cert, receiving systemd `OnFailure=` alerts from every host via `common/ntfy-notify.nix` plus uptime alerts from Gatus on `monitor` — three topics (`homelab-critical`/`-warn`/`-info`) with severity set per-subscription on the phone. Writer-token copies live at `/etc/ntfy-token` on every host and `/etc/gatus.env` on `monitor`. Hostname is `nass` (intentional, not a typo of the directory name).
 - `dev` — Docker-enabled workstation with Python/Node/MariaDB-client toolchain. `jeff` is added to the `docker` group here.
 - `auth` — SSO host: Pocket-ID (`https://auth.tail1ec6c3.ts.net`) behind nginx + tailscale-cert, providing OIDC for Grafana. Daily restic backup of `/var/lib/pocket-id` to Backblaze B2 — `pocket-id.service` runs with `DynamicUser=no`, so that is a real directory and *not* subject to the `/var/lib/private/<svc>` symlink trap that applies to the DynamicUser services. The Pocket-ID encryption key at `/etc/pocket-id/encryption-key` and OIDC client secrets are provisioned out-of-band; ntfy used to live here but moved to `nass` so Pocket-ID could own the `auth` FQDN root.
 

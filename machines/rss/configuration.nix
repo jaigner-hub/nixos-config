@@ -122,8 +122,8 @@ in
   };
 
   # Daily encrypted restic snapshot of the dump dir to Backblaze B2.
-  # Runs roughly 90 minutes after the db-backup timer (same pattern as
-  # immich) so the dump is always fresh when restic sweeps it up.
+  # Runs roughly 90 minutes after the db-backup timer so the dump is
+  # always fresh when restic sweeps it up.
   services.restic.backups.rss = {
     paths = [ backupDir ];
     repository = "s3:https://${b2Endpoint}/${b2Bucket}/rss";
